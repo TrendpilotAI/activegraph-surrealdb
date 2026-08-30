@@ -29,6 +29,11 @@ volume identified by `SURREALDB_VOLUME`. The qualification fixture verifies
 that exact named volume and the absolute `rocksdb:///data/activegraph.db`
 storage URL. Do not change the image to `latest` in qualification evidence.
 
+SurrealDB's production image runs as a non-root user. A one-shot, fixed-version
+BusyBox service makes the otherwise root-owned empty Docker volume writable,
+then exits before SurrealDB starts. It does not remain on the network or run the
+database as root.
+
 ## Stop and remove
 
 Stop the server without deleting its volume:

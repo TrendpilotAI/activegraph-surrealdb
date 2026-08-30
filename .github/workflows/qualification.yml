@@ -55,6 +55,9 @@ jobs:
       - name: Start pinned SurrealDB
         run: |
           docker volume create "${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME}"
+          docker run --rm --user 0:0 \
+            --volume "${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME}:/data" \
+            busybox:1.37.0 chmod 0777 /data
           docker run --detach \
             --name "${ACTIVEGRAPH_SURREALDB_DOCKER_CONTAINER}" \
             --publish 127.0.0.1:8000:8000 \

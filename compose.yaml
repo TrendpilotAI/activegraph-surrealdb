@@ -1,9 +1,19 @@
 name: activegraph-surrealdb
 
 services:
+  volume-init:
+    image: busybox:1.37.0
+    user: "0:0"
+    command: ["chmod", "0777", "/data"]
+    volumes:
+      - surrealdb-data:/data
+
   surrealdb:
     image: surrealdb/surrealdb:v3.2.4
     container_name: ${SURREALDB_CONTAINER_NAME:-activegraph-surrealdb}
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     environment:
       SURREAL_USER: ${SURREALDB_USER:-root}
       SURREAL_PASS: ${SURREALDB_PASSWORD:?set SURREALDB_PASSWORD in .env}
