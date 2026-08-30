@@ -56,12 +56,12 @@ jobs:
         run: |
           docker volume create "${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME}"
           docker run --rm --user 0:0 \
-            --volume "${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME}:/data" \
+            --mount "type=volume,src=${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME},dst=/data,volume-nocopy" \
             busybox:1.37.0 chmod 0777 /data
           docker run --detach \
             --name "${ACTIVEGRAPH_SURREALDB_DOCKER_CONTAINER}" \
             --publish 127.0.0.1:8000:8000 \
-            --volume "${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME}:/data" \
+            --mount "type=volume,src=${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME},dst=/data,volume-nocopy" \
             --env SURREAL_USER=root \
             --env "SURREAL_PASS=${ACTIVEGRAPH_SURREALDB_TEST_PASSWORD}" \
             surrealdb/surrealdb:v3.2.4 \

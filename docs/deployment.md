@@ -32,7 +32,10 @@ storage URL. Do not change the image to `latest` in qualification evidence.
 SurrealDB's production image runs as a non-root user. A one-shot, fixed-version
 BusyBox service makes the otherwise root-owned empty Docker volume writable,
 then exits before SurrealDB starts. It does not remain on the network or run the
-database as root.
+database as root. Both mounts set Docker's `volume-nocopy` option. Without it,
+Docker treats the still-empty volume as eligible for image copy-up when the
+SurrealDB container starts; that operation restores a root-owned volume root
+and the non-root database process cannot create its RocksDB directory.
 
 ## Stop and remove
 
