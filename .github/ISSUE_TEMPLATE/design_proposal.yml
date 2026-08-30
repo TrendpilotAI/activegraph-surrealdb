@@ -1,0 +1,55 @@
+name: Design proposal
+description: Propose a provider contract, compatibility change, or use case
+title: "[Proposal]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain the need in plain language before proposing an API.
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior or workaround
+      description: Link a public reproduction when one exists.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed general solution
+      description: Identify the owning layer and observable contract.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What must this proposal deliberately not solve or claim?
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Conformance tests
+      description: List success, failure, restart, concurrency, and migration evidence as applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and security impact
+      description: Note version, transport, engine, schema, auth, and data migration effects.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Boundary checks
+      options:
+        - label: This proposal is generic and contains no application or customer material.
+          required: true
+        - label: I have identified any required upstream ActiveGraph or SurrealDB change.
+          required: true

@@ -1,0 +1,12 @@
+activegraph-surrealdb
+Copyright 2026 TrendpilotAI
+
+This product is licensed under the Apache License, Version 2.0.
+
+ActiveGraph and SurrealDB are independent projects. Their names and trademarks
+belong to their respective owners. This project interoperates with their public
+interfaces; it is not endorsed by or affiliated with either project.
+
+No ActiveGraph or SurrealDB source code is vendored in this distribution.
+Their packages are resolved as external dependencies and remain subject to
+their own licenses and notices.

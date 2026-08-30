@@ -1,0 +1,31 @@
+name: activegraph-surrealdb
+
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v3.2.4
+    container_name: ${SURREALDB_CONTAINER_NAME:-activegraph-surrealdb}
+    environment:
+      SURREAL_USER: ${SURREALDB_USER:-root}
+      SURREAL_PASS: ${SURREALDB_PASSWORD:?set SURREALDB_PASSWORD in .env}
+    command:
+      - start
+      - --bind
+      - 0.0.0.0:8000
+      - --log
+      - ${SURREALDB_LOG:-info}
+      - rocksdb:///data/activegraph.db
+    ports:
+      - 127.0.0.1:${SURREALDB_PORT:-8000}:8000
+    volumes:
+      - surrealdb-data:/data
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://127.0.0.1:8000"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 30s
+
+volumes:
+  surrealdb-data:
+    name: ${SURREALDB_VOLUME:-activegraph-surrealdb-data}

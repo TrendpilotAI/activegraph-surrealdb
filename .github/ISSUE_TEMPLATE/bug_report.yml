@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a repeatable provider defect using synthetic data
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Do not include credentials, real records, private paths, or customer data. Report security issues privately through SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Plain-language impact
+      description: What goes wrong, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal synthetic reproduction
+      description: Include complete commands or code using only synthetic values.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Provider version or commit
+      placeholder: 0.1.0a1 or full commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python, ActiveGraph, SDK, server, OS, transport, and engine versions.
+      placeholder: |
+        Python:
+        ActiveGraph:
+        SurrealDB SDK:
+        SurrealDB server:
+        OS:
+        Transport and engine:
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Likely owning layer
+      options:
+        - Provider event store
+        - Provider graph store
+        - Provider replay or fork helper
+        - ActiveGraph runtime
+        - SurrealDB server or SDK
+        - Packaging, docs, or CI
+        - Unknown
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Publication checks
+      options:
+        - label: I used synthetic data and removed secrets and private paths.
+          required: true
+        - label: This is not a confidential security report.
+          required: true
