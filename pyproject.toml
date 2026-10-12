@@ -32,6 +32,8 @@ dev = [
   "mypy>=1.11,<2",
   "pytest>=8.3,<10",
   "pytest-cov>=5,<8",
+  # The external pack library's fixture suites (tests/packs) parse YAML.
+  "pyyaml>=6,<7",
   "ruff>=0.9,<1",
   "twine>=5,<7",
 ]
