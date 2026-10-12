@@ -89,9 +89,12 @@ the structural work runs in SurrealDB:
 - `match_chain` is inherited from the base class and therefore composes the
   pushed-down primitives hop by hop rather than scanning the whole graph.
 
-Schema v2 adds the `(scope, run_id, ...)` indexes these queries use. The
-pushdown is pinned by `tests/integration/test_graph_pushdown.py`, which disables
-the `all_objects` / `all_relations` fallback and then exercises every hook.
+Schema v2 adds the `(scope, run_id, ...)` indexes these queries use. Schema v3
+adds `ag_vertex.object_seq`, which records the framework's object counter so
+reads return objects in the reference in-memory store's insertion order rather
+than a lexicographic sort of the logical IDs. The pushdown is pinned by
+`tests/integration/test_graph_pushdown.py`, which disables the `all_objects` /
+`all_relations` fallback and then exercises every hook.
 
 ## Live writes are not cross-store atomic
 

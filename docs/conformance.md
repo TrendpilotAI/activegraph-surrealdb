@@ -12,9 +12,11 @@ different claims.
 | Write ordering | `tests/test_write_ordering.py` | A rejected append leaves no projected state (ActiveGraph 1.12) |
 | Released ActiveGraph suites | `tests/integration/*conformance.py` | Compatibility with the public EventStore and GraphStore contracts |
 | Native query pushdown | `tests/integration/test_graph_pushdown.py` | The query hooks run in SurrealQL, not the Python full-scan fallback |
-| Schema upgrade | `tests/integration/test_schema_upgrade.py` | A v1 database upgrades in place; a newer schema is rejected |
+| Projection order | `tests/integration/test_projection_order.py` | Objects read back in the reference store's insertion order, including across reopens |
+| Schema upgrade | `tests/integration/test_schema_upgrade.py` | An older database upgrades in place; a newer schema is rejected |
 | Provider invariants | `pytest -m surrealdb` | Real server transactions, isolation, native edges, replay/fork/diff, restart within a live server |
 | Pack harness | `pytest -m packs tests/packs` | The published pack library loads and projects into one SurrealDB database |
+| Pack fixture suites | `tests/packs/test_pack_fixtures_on_surrealdb.py` | Each pack's own `fixtures/run_fixtures.py` runs unchanged on SurrealDB-backed stores |
 | Qualification | `pytest -m qualification` | Exact pinned image/SDK/engine and container restart/kill persistence |
 | Upstream known issues | `tests/known_issues` | Strict expected failures for lifecycle gaps outside this provider |
 
@@ -42,8 +44,11 @@ Promotion evidence must include at least:
 - exact JSON round-trip and literal canonical/hash golden values;
 - append-before-projection ordering (a rejected append leaves no projection);
 - native query pushdown for every overridden GraphStore hook;
+- projected objects returned in the reference store's insertion order;
 - an in-place, data-preserving schema upgrade and rejection of a newer schema;
 - loading the published pack library onto one SurrealDB-backed Runtime;
+- running each pack's own fixture suite on SurrealDB-backed stores, with any
+  non-portable suite recorded as an explicit expected divergence;
 - transaction rollback without an orphan event or advanced head;
 - deterministic same-run stale-writer rejection and independent run progress;
 - scope/run isolation across reads, clears, truncation, forks, and relations;

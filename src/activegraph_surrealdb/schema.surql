@@ -1,7 +1,7 @@
--- ActiveGraph SurrealDB provider schema, version 2.
--- Every statement is IF NOT EXISTS, so applying this file to a v1 database
--- upgrades it in place by adding the v2 indexes below. All logical identifiers
--- are retained as fields; record IDs are opaque hashes.
+-- ActiveGraph SurrealDB provider schema, version 3.
+-- Every statement is IF NOT EXISTS, so applying this file to an older database
+-- upgrades it in place by adding the later indexes/fields below. All logical
+-- identifiers are retained as fields; record IDs are opaque hashes.
 
 DEFINE TABLE IF NOT EXISTS ag_schema SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS version ON TABLE ag_schema TYPE int;
@@ -58,6 +58,11 @@ DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_id ON TABLE ag_vertex FIELDS scop
 -- and the per-level neighbourhood walk) without scanning the whole graph.
 DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_present ON TABLE ag_vertex FIELDS scope, run_id, object_present;
 DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_type ON TABLE ag_vertex FIELDS scope, run_id, object_type;
+-- Schema v3: object projection order. ActiveGraph's reference in-memory store
+-- yields objects in insertion order; `object_seq` records the framework ID
+-- counter so SurrealDB returns the same order instead of sorting opaque IDs.
+DEFINE FIELD IF NOT EXISTS object_seq ON TABLE ag_vertex TYPE int DEFAULT 0;
+DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_seq ON TABLE ag_vertex FIELDS scope, run_id, object_seq;
 
 DEFINE TABLE IF NOT EXISTS ag_relation SCHEMAFULL TYPE RELATION IN ag_vertex OUT ag_vertex;
 DEFINE FIELD IF NOT EXISTS scope ON TABLE ag_relation TYPE string;

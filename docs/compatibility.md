@@ -72,6 +72,8 @@ migration are not implemented by guessing at private runtime state.
 
 The provider schema is versioned and additive. Schema v1 introduced the
 event/graph tables; schema v2 adds the indexes that back the native query
-pushdown. Opening a v1 database upgrades it in place without data loss; a
-database written by a newer provider is rejected rather than mis-read. The
-upgrade path is pinned by `tests/integration/test_schema_upgrade.py`.
+pushdown; schema v3 records the object counter that gives projection reads the
+reference store's insertion order. Opening an older database upgrades it in
+place without data loss; a database written by a newer provider is rejected
+rather than mis-read. The upgrade path is pinned by
+`tests/integration/test_schema_upgrade.py`.

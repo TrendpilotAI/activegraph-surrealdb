@@ -22,7 +22,7 @@ from .config import SurrealConfig
 from .errors import ClosedStoreError, ConfigurationError, LedgerIntegrityError
 from .keys import record_key
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _MIN_SCHEMA_VERSION = 1
 SCHEMA_RECORD = RecordID("ag_schema", "singleton")
 _VERSION_RE = re.compile(r"(?:surrealdb[- ]v?)?(?P<version>\d+\.\d+\.\d+)", re.I)
