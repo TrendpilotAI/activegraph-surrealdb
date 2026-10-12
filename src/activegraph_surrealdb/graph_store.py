@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -77,6 +78,7 @@ class SurrealGraphStore(GraphStore):
             "scope": self.scope,
             "run_id": self.run_id,
             "object_present": True,
+            "object_seq": _object_seq(obj.id),
             **object_to_record(obj),
         }
         self._connection.session.upsert(self.vertex_record_id(obj.id), content)
@@ -106,7 +108,7 @@ class SurrealGraphStore(GraphStore):
         rows = _rows(
             self._connection.query(
                 "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
-                "AND object_present = true ORDER BY object_id ASC;",
+                "AND object_present = true ORDER BY object_seq ASC, object_id ASC;",
                 self._scope_variables(),
             )
         )
@@ -207,7 +209,7 @@ class SurrealGraphStore(GraphStore):
             self._connection.query(
                 "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
                 "AND object_present = true AND object_type IN $types "
-                "ORDER BY object_id ASC;",
+                "ORDER BY object_seq ASC, object_id ASC;",
                 {**self._scope_variables(), "types": list(dict.fromkeys(types))},
             )
         )
@@ -288,7 +290,7 @@ class SurrealGraphStore(GraphStore):
         if object_type is not None:
             statement += " AND object_type = $object_type"
             variables["object_type"] = str(object_type)
-        statement += " ORDER BY object_id ASC"
+        statement += " ORDER BY object_seq ASC, object_id ASC"
         if limit is not None:
             statement += " LIMIT $limit"
             variables["limit"] = int(limit)
@@ -315,7 +317,8 @@ class SurrealGraphStore(GraphStore):
         rows = _rows(
             self._connection.query(
                 "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
-                "AND object_present = true AND object_id IN $ids;",
+                "AND object_present = true AND object_id IN $ids "
+                "ORDER BY object_seq ASC, object_id ASC;",
                 {**self._scope_variables(), "ids": sorted(object_ids)},
             )
         )
@@ -508,6 +511,9 @@ class SurrealGraphStore(GraphStore):
             "run_id": self.run_id,
             "object_id": str(object_id),
             "object_present": False,
+            # Keep the projection order stable when an object is removed or a
+            # relation endpoint is stubbed: the counter is derived from the ID.
+            "object_seq": _object_seq(object_id),
         }
 
     def _relation_record_id(self, relation_id: str) -> RecordID:
@@ -533,6 +539,23 @@ class SurrealGraphStore(GraphStore):
     def _ensure_open(self) -> None:
         if self._closed:
             raise ClosedStoreError("the SurrealGraphStore is closed")
+
+
+_OBJECT_SEQ_RE = re.compile(r"#(?P<seq>\d+)$")
+
+
+def _object_seq(object_id: str) -> int:
+    """Recover the framework's global object counter from a ``type#n`` ID.
+
+    ActiveGraph assigns object IDs from one monotonic per-graph counter
+    (``task#1``, ``claim#2``, ...). That counter *is* the insertion order the
+    reference in-memory store exposes, so persisting it lets SurrealDB return
+    objects in the same order rather than sorting opaque IDs lexicographically.
+    Non-framework IDs fall back to 0 and tie-break on the logical ID.
+    """
+
+    match = _OBJECT_SEQ_RE.search(str(object_id))
+    return int(match.group("seq")) if match else 0
 
 
 def _one(value: Any) -> dict[str, Any] | None:

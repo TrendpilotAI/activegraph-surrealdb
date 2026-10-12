@@ -271,6 +271,65 @@ class SurrealEventStore:
             frame_id=_optional_text(row.get("frame_id")),
         )
 
+    def upsert_run(
+        self,
+        *,
+        parent_run_id: str | None = None,
+        forked_at_event_id: str | None = None,
+        label: str | None = None,
+        created_at: str,
+        goal: str | None = None,
+        frame_id: str | None = None,
+    ) -> None:
+        """Insert or update this run's metadata row.
+
+        The persistent-backend extra the runtime calls from
+        ``Runtime(..., persist_to=...)`` and ``Runtime.load``. Mirrors the
+        SQLite backend's ``COALESCE`` semantics: ``None`` never clears a stored
+        value (a reload upserts with only ``created_at``, and a fork's
+        ``parent_run_id`` / ``forked_at_event_id`` / ``label`` must survive it).
+        ``created_at`` is written on insert only.
+        """
+
+        with self._lock:
+            self._ensure_open()
+            if self._read_run_row() is None:
+                self._connection.query(
+                    "CREATE $run CONTENT $content;",
+                    {
+                        "run": self._run_record,
+                        "content": {
+                            "scope": self.scope,
+                            "run_id": self.run_id,
+                            "parent_run_id": parent_run_id,
+                            "forked_at_event_id": forked_at_event_id,
+                            "label": label,
+                            "created_at": created_at,
+                            "goal": goal,
+                            "frame_id": frame_id,
+                            "next_seq": 0,
+                            "head_hash": None,
+                        },
+                    },
+                )
+                return
+            patch = {
+                key: value
+                for key, value in (
+                    ("parent_run_id", parent_run_id),
+                    ("forked_at_event_id", forked_at_event_id),
+                    ("label", label),
+                    ("goal", goal),
+                    ("frame_id", frame_id),
+                )
+                if value is not None
+            }
+            if patch:
+                self._connection.query(
+                    "UPDATE ONLY $run MERGE $patch;",
+                    {"run": self._run_record, "patch": patch},
+                )
+
     def verify_integrity(self) -> IntegrityReport:
         rows, run = self._verified_rows_and_run()
         return IntegrityReport(
@@ -288,6 +347,44 @@ class SurrealEventStore:
             return _one(connection.query("SELECT * FROM ONLY $run;", {"run": record})) is not None
         finally:
             connection.close()
+
+    @classmethod
+    def most_recent_run_id(cls, config: SurrealConfig, *, scope: str) -> str | None:
+        """Return the run in ``scope`` that most recently made progress.
+
+        Mirrors ``SQLiteEventStore.most_recent_run_id``: runs with events sort
+        ahead of empty runs, then by event count, then by creation time. Used
+        by ``Runtime.load`` when no ``run_id`` is supplied.
+        """
+
+        connection = cls._new_connection(config)
+        try:
+            connection.ensure_schema()
+            variables = {"scope": str(scope)}
+            run_rows = connection.query(
+                "SELECT run_id, created_at FROM ag_run WHERE scope = $scope;", variables
+            )
+            event_rows = connection.query(
+                "SELECT run_id, count() AS events FROM ag_event WHERE scope = $scope "
+                "GROUP BY run_id;",
+                variables,
+            )
+        finally:
+            connection.close()
+
+        counts = {str(row["run_id"]): int(row.get("events", 0)) for row in _rows(event_rows)}
+        candidates = [
+            (
+                1 if counts.get(str(row["run_id"]), 0) > 0 else 0,
+                counts.get(str(row["run_id"]), 0),
+                str(row.get("created_at") or ""),
+                str(row["run_id"]),
+            )
+            for row in _rows(run_rows)
+        ]
+        if not candidates:
+            return None
+        return max(candidates)[3]
 
     @classmethod
     def inspect_run_artifacts(
@@ -578,6 +675,14 @@ def _one(value: Any) -> dict[str, Any] | None:
         first = value[0]
         return first if isinstance(first, dict) else None
     return None
+
+
+def _rows(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        return [row for row in value if isinstance(row, dict)]
+    if isinstance(value, dict):
+        return [value]
+    return []
 
 
 def _scalar(value: Any) -> Any:

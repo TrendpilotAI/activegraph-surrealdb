@@ -90,7 +90,9 @@ filters, existence probes, and the undirected neighbourhood walk are all bound
 SurrealQL; `match_chain` composes those pushed-down primitives hop by hop. The
 rich `where` predicate stays with ActiveGraph and is returned as an exact
 residual, per the released contract. Schema v2 adds the indexes those queries
-use. See [ADR 0003](docs/adr/0003-native-query-pushdown.md).
+use; schema v3 records the object counter so reads return the reference store's
+insertion order. See [ADR 0003](docs/adr/0003-native-query-pushdown.md) and
+[ADR 0004](docs/adr/0004-projection-order.md).
 
 ## Pack library
 
@@ -118,6 +120,13 @@ communication (including composio), bridges, mcp, attention, evolution,
 semantic_extraction, eval_outcome, activity_normalizer, connector_control,
 skills, usage, and the importers all load and project into one SurrealDB
 database.
+
+A second lane runs each pack's own `fixtures/run_fixtures.py` unchanged on
+SurrealDB-backed stores (`tests/packs/test_pack_fixtures_on_surrealdb.py`). All
+but two suites pass; `communication` reads an object it created after a behavior
+patched it, which only works with the in-memory object graph, and `evolution`
+drives SQLite-backed subprocess forks. Both are recorded as expected divergences
+rather than hidden.
 
 Read the full [architecture](docs/architecture.md) and [security model](docs/security-model.md).
 
@@ -160,7 +169,7 @@ Run the contract layers separately:
 ```bash
 pytest -m 'not surrealdb and not qualification'
 pytest -m surrealdb tests/integration
-pytest -m packs tests/packs
+pytest -m packs tests/packs            # pack harness + per-pack fixture suites
 python examples/replay_fork_diff.py
 ```
 
@@ -178,10 +187,10 @@ interpreting a green result.
 
 - `src/activegraph_surrealdb/`: provider implementation
 - `src/activegraph_surrealdb/harness.py`: load the pack library onto a SurrealDB Runtime
-- `tests/`: unit, live integration, qualification, pack-harness, and upstream-known-issue contracts
+- `tests/`: unit, live integration, qualification, pack-harness and per-pack fixture, and upstream-known-issue contracts
 - `examples/replay_fork_diff.py`: small fork/diff/replay experiment
 - `examples/combined_store_pack.py`: a pack running on one SurrealDB event+graph store
-- `docs/adr/`: authority, version, and pushdown decisions
+- `docs/adr/`: authority, version, pushdown, and projection-order decisions
 - `docs/`: architecture, operations, evidence, security, and provenance
 
 ## Contributing and security
