@@ -70,6 +70,9 @@ CI status is implementation evidence only for its recorded environment. It is
 not a performance benchmark, deployed-service proof, backup proof, or proof that
 an application has modeled authorization correctly.
 
+Optional Arize AX traces and conformance evaluations can be attached to this
+evidence; see [telemetry.md](telemetry.md).
+
 ## Contract-first status
 
 Tests may intentionally be RED while a contract is being implemented. That is
