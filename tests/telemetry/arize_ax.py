@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import os
 import platform
-import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from importlib import metadata
 from typing import Any
@@ -30,12 +30,19 @@ from tests.telemetry.conformance_cases import (
     LAYER_CONFORMANCE as CONFORMANCE_LAYER,
 )
 from tests.telemetry.conformance_cases import OUTCOME_SCORES
+from tests.telemetry.context import (
+    ci_evidence,
+    git_evidence,
+    lane_host,
+    surrealdb_server_version,
+)
 
 ENV_ENABLE = "ACTIVEGRAPH_SURREALDB_ARIZE"
 ENV_SPACE_ID = "ARIZE_SPACE_ID"
 ENV_API_KEY = "ARIZE_API_KEY"
 ENV_ENDPOINT = "ARIZE_OTLP_ENDPOINT"
 ENV_PROJECT = "ARIZE_PROJECT_NAME"
+ENV_LANE_URL = "ACTIVEGRAPH_SURREALDB_TEST_URL"
 
 DEFAULT_ENDPOINT = "https://otlp.arize.com/v1"
 DEFAULT_PROJECT = "activegraph-surrealdb"
@@ -63,6 +70,9 @@ class Case:
     nodeid: str
     layer: str
     duration: float = 0.0
+    setup: float = 0.0
+    call: float = 0.0
+    teardown: float = 0.0
     outcome: str = "passed"
     explanation: str | None = None
 
@@ -73,7 +83,9 @@ class State:
     tracer: Any = None
     provider: Any = None
     session_span: Any = None
+    started: float = 0.0
     cases: dict[str, Case] = field(default_factory=dict)
+    history: dict[str, list[float]] = field(default_factory=dict)
 
 
 _STATE = State()
@@ -132,29 +144,6 @@ def _explanation(report: pytest.TestReport) -> str | None:
     return text
 
 
-def _git_evidence() -> dict[str, Any]:
-    evidence: dict[str, Any] = {}
-    try:
-        sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        evidence["git.commit"] = sha
-        evidence["git.dirty"] = bool(dirty)
-    except (OSError, subprocess.SubprocessError):
-        evidence["git.commit"] = "unknown"
-        evidence["git.dirty"] = True
-    return evidence
-
-
 def _package_version(distribution: str) -> str:
     try:
         return metadata.version(distribution)
@@ -197,6 +186,20 @@ def _build(settings: Settings) -> tuple[Any, Any, str | None]:
     return tracer, provider, None
 
 
+def _install_global_provider(provider: Any) -> None:
+    """Make adaptor spans (OpenTelemetry API) flow to the same exporter.
+
+    Only claims the global provider when nothing else has; if another
+    harness already installed one, adaptor spans go there and ours stay
+    local — either way the store never sees a telemetry failure.
+    """
+
+    from opentelemetry import trace as otel_trace
+
+    if type(otel_trace.get_tracer_provider()).__name__ == "ProxyTracerProvider":
+        otel_trace.set_tracer_provider(provider)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     settings = _settings()
     if settings is None:
@@ -207,18 +210,25 @@ def pytest_configure(config: pytest.Config) -> None:
         return
     _STATE.tracer = tracer
     _STATE.provider = provider
-    _STATE.session_span = tracer.start_span(
-        "pytest::session",
-        attributes={
-            "pytest.command": " ".join(sys.argv),
-            **_git_evidence(),
-            "activegraph.version": _package_version("activegraph"),
-            "activegraph_surrealdb.version": _package_version("activegraph-surrealdb"),
-            "surrealdb.version": _package_version("surrealdb"),
-            "python.version": platform.python_version(),
-            "os.platform": f"{platform.system()} {platform.release()} {platform.machine()}",
-        },
-    )
+    _STATE.started = time.monotonic()
+    _install_global_provider(provider)
+    attributes: dict[str, Any] = {
+        "pytest.command": " ".join(sys.argv),
+        **git_evidence(),
+        **ci_evidence(),
+        "activegraph.version": _package_version("activegraph"),
+        "activegraph_surrealdb.version": _package_version("activegraph-surrealdb"),
+        "surrealdb.version": _package_version("surrealdb"),
+        "python.version": platform.python_version(),
+        "os.platform": f"{platform.system()} {platform.release()} {platform.machine()}",
+    }
+    lane = os.getenv(ENV_LANE_URL)
+    if lane:
+        host = lane_host(lane)
+        if host:
+            attributes["lane.host"] = host
+        attributes["surrealdb.server_version"] = surrealdb_server_version(lane)
+    _STATE.session_span = tracer.start_span("pytest::session", attributes=attributes)
 
 
 def pytest_collection_modifyitems(
@@ -244,6 +254,12 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         case = Case(nodeid=report.nodeid, layer="unknown")
         _STATE.cases[report.nodeid] = case
     case.duration += report.duration
+    if report.when == "setup":
+        case.setup += report.duration
+    elif report.when == "call":
+        case.call += report.duration
+    elif report.when == "teardown":
+        case.teardown += report.duration
     decided = outcome(report)
     if report.when == "call" or decided in _deciding:
         case.outcome = decided
@@ -273,6 +289,7 @@ def _emit_case(case: Case) -> None:
     from opentelemetry.trace import Status, StatusCode
 
     assert _STATE.tracer is not None
+    _STATE.history.setdefault(case.layer, []).append(case.duration)
     span = _STATE.tracer.start_span(
         f"pytest::{case.nodeid}",
         attributes={
@@ -280,12 +297,28 @@ def _emit_case(case: Case) -> None:
             "pytest.layer": case.layer,
             "pytest.outcome": case.outcome,
             "pytest.duration_ms": case.duration * 1000.0,
+            "pytest.setup_ms": case.setup * 1000.0,
+            "pytest.call_ms": case.call * 1000.0,
+            "pytest.teardown_ms": case.teardown * 1000.0,
             **_evaluation_attributes(case),
         },
     )
     if case.outcome in {"failed", "xpass-strict"}:
         span.set_status(Status(StatusCode.ERROR, case.outcome))
     span.end()
+
+
+def _percentile(values: list[float], q: float) -> float:
+    """Linear-interpolated percentile, stdlib only."""
+
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    rank = (len(ordered) - 1) * q / 100.0
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -295,6 +328,19 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     for category, count in _terminal_counts(session).items():
         _STATE.session_span.set_attribute(f"pytest.{category}", count)
+    wall_ms = (time.monotonic() - _STATE.started) * 1000.0 if _STATE.started else 0.0
+    _STATE.session_span.set_attribute("pytest.session_wall_ms", wall_ms)
+    for layer, durations in sorted(_STATE.history.items()):
+        slug = layer.replace(" ", "-")
+        _STATE.session_span.set_attribute(
+            f"pytest.{slug}.latency_p50_ms", _percentile(durations, 50)
+        )
+        _STATE.session_span.set_attribute(
+            f"pytest.{slug}.latency_p95_ms", _percentile(durations, 95)
+        )
+        _STATE.session_span.set_attribute(
+            f"pytest.{slug}.latency_max_ms", max(durations, default=0.0)
+        )
     _STATE.session_span.set_attribute("pytest.exitstatus", int(exitstatus))
     errored = exitstatus not in benign
     _STATE.session_span.set_status(

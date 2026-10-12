@@ -34,6 +34,9 @@ _deciding = {"failed", "skipped", "xpass-strict"}
 class _Case:
     outcome: str = "passed"
     duration: float = 0.0
+    setup: float = 0.0
+    call: float = 0.0
+    teardown: float = 0.0
     explanation: str | None = None
 
 
@@ -43,6 +46,12 @@ _CASES: dict[str, _Case] = {}
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     case = _CASES.setdefault(report.nodeid, _Case())
     case.duration += report.duration
+    if report.when == "setup":
+        case.setup += report.duration
+    elif report.when == "call":
+        case.call += report.duration
+    elif report.when == "teardown":
+        case.teardown += report.duration
     decided = outcome(report)
     if report.when == "call" or decided in _deciding:
         case.outcome = decided
@@ -62,6 +71,9 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         nodeid: {
             "outcome": case.outcome,
             "duration_ms": round(case.duration * 1000.0, 3),
+            "setup_ms": round(case.setup * 1000.0, 3),
+            "call_ms": round(case.call * 1000.0, 3),
+            "teardown_ms": round(case.teardown * 1000.0, 3),
             "explanation": case.explanation,
         }
         for nodeid, case in _CASES.items()

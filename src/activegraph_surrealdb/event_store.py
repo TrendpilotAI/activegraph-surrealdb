@@ -23,6 +23,7 @@ from .errors import (
     RunAlreadyExistsError,
     UnsupportedCompactedRunError,
 )
+from .instrument import traced
 from .serde import event_hash, event_to_record, record_to_event
 
 if TYPE_CHECKING:
@@ -81,6 +82,7 @@ class SurrealEventStore:
     # ------------------------------------------------------------------
     # ActiveGraph EventStore protocol
 
+    @traced("event_store.append")
     def append(self, event: Event) -> None:
         # Validate and adapt before opening a transaction or mutating the head.
         encoded = event_to_record(event)
@@ -149,6 +151,7 @@ class SurrealEventStore:
                 self._expected_next_seq = seq + 1
                 self._expected_head_hash = current_hash
 
+    @traced("event_store.iter")
     def iter_events(
         self,
         after: str | None = None,
@@ -166,6 +169,7 @@ class SurrealEventStore:
                 continue
             yield record_to_event(row)
 
+    @traced("event_store.get")
     def get_event(self, event_id: str) -> Event | None:
         self._ensure_open()
         row = _one(
@@ -179,6 +183,7 @@ class SurrealEventStore:
         self._assert_row_scope(row)
         return record_to_event(row)
 
+    @traced("event_store.count")
     def count(self) -> int:
         self._ensure_open()
         result = self._connection.query(
@@ -189,6 +194,7 @@ class SurrealEventStore:
         row = _one(result)
         return int(row.get("count", 0)) if row is not None else 0
 
+    @traced("event_store.truncate_after")
     def truncate_after(self, event_id: str) -> None:
         with self._lock:
             self._ensure_open()
@@ -256,6 +262,7 @@ class SurrealEventStore:
             raise LedgerIntegrityError("the provider schema version record is missing")
         return str(value)
 
+    @traced("event_store.get_run")
     def get_run(self) -> RunRecord | None:
         self._ensure_open()
         row = self._read_run_row()
@@ -271,6 +278,7 @@ class SurrealEventStore:
             frame_id=_optional_text(row.get("frame_id")),
         )
 
+    @traced("event_store.verify_integrity")
     def verify_integrity(self) -> IntegrityReport:
         rows, run = self._verified_rows_and_run()
         return IntegrityReport(
@@ -279,6 +287,7 @@ class SurrealEventStore:
             head_hash=_optional_text(run.get("head_hash")),
         )
 
+    @traced("event_store.run_exists")
     @classmethod
     def run_exists(cls, config: SurrealConfig, *, run_id: str, scope: str) -> bool:
         connection = cls._new_connection(config)
@@ -289,6 +298,7 @@ class SurrealEventStore:
         finally:
             connection.close()
 
+    @traced("event_store.inspect_run_artifacts")
     @classmethod
     def inspect_run_artifacts(
         cls, config: SurrealConfig, *, run_id: str, scope: str
@@ -315,6 +325,7 @@ class SurrealEventStore:
     # ------------------------------------------------------------------
     # Store-neutral, uncompacted prefix fork primitive
 
+    @traced("event_store.fork_prefix")
     def fork_prefix(
         self,
         *,

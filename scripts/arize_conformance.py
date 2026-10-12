@@ -39,7 +39,6 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -56,6 +55,11 @@ from tests.telemetry.conformance_cases import (  # noqa: E402
     ConformanceCase,
     cases_by_dataset,
     enumerate_cases,
+)
+from tests.telemetry.context import (  # noqa: E402
+    ci_evidence,
+    git_evidence,
+    lane_host,
 )
 from tests.telemetry.scoring import contract_scorer  # noqa: E402
 
@@ -114,21 +118,12 @@ def _ax_client() -> tuple[ArizeClient, str]:
 
 
 def _run_metadata() -> dict[str, str]:
-    metadata = {"git.branch": "arize-conformance-mirror"}
-    try:
-        sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        metadata["git.commit"] = sha
-    except (OSError, subprocess.SubprocessError):
-        metadata["git.commit"] = "unknown"
-    lane = os.getenv("ACTIVEGRAPH_SURREALDB_TEST_URL")
-    if lane:
-        metadata["lane.host"] = urlparse(lane).netloc or "unknown"
+    # Experiment runs carry the same provenance the session span does:
+    # commit, branch, dirty status, CI context, and the lane host only.
+    metadata = {key: str(value) for key, value in {**git_evidence(), **ci_evidence()}.items()}
+    host = lane_host(os.getenv("ACTIVEGRAPH_SURREALDB_TEST_URL"))
+    if host:
+        metadata["lane.host"] = host
     return metadata
 
 
@@ -197,6 +192,9 @@ def make_task() -> Callable[[Any], dict[str, Any]]:
             "outcome": str(entry.get("outcome", "failed")),
             "explanation": entry.get("explanation"),
             "duration_ms": entry.get("duration_ms") or wall_ms,
+            "setup_ms": entry.get("setup_ms"),
+            "call_ms": entry.get("call_ms"),
+            "teardown_ms": entry.get("teardown_ms"),
         }
 
     return run_case

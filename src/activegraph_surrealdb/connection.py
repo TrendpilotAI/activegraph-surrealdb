@@ -7,8 +7,10 @@ import threading
 from collections.abc import Iterator, Mapping
 from importlib import resources
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from surrealdb import (
     BlockingSurrealSession,
     BlockingSurrealTransaction,
@@ -20,6 +22,7 @@ from surrealdb import (
 
 from .config import SurrealConfig
 from .errors import ClosedStoreError, ConfigurationError, LedgerIntegrityError
+from .instrument import statement_kind, tracer
 from .keys import record_key
 
 SCHEMA_VERSION = 2
@@ -42,26 +45,37 @@ class SurrealConnection:
         self._schema_ready = False
         self._schema_lock = threading.RLock()
 
-        connection = Surreal(config.endpoint)
-        if not isinstance(connection, BlockingWsSurrealConnection):
-            connection.close()
-            raise ConfigurationError(
-                "the provider requires the SurrealDB blocking WebSocket transport"
-            )
-        self._connection: BlockingWsSurrealConnection = connection
-        self._session: BlockingSurrealSession | None = None
+        with tracer.start_as_current_span("surrealdb.connect", kind=SpanKind.CLIENT) as span:
+            span.set_attribute("db.system", "surrealdb")
+            span.set_attribute("surrealdb.namespace", config.namespace)
+            span.set_attribute("surrealdb.database", config.database)
+            host = urlparse(config.endpoint).netloc
+            if host:
+                span.set_attribute("server.address", host)
 
-        try:
-            self._connection.signin({"username": config.username, "password": config.password})
-            self._connection.use(config.namespace, config.database)
-            session = self._connection.new_session()
-            session.signin({"username": config.username, "password": config.password})
-            session.use(config.namespace, config.database)
-            self._session = session
-        except BaseException:
-            self._connection.close()
-            self._closed = True
-            raise
+            connection = Surreal(config.endpoint)
+            if not isinstance(connection, BlockingWsSurrealConnection):
+                connection.close()
+                span.set_status(Status(StatusCode.ERROR, "ConfigurationError"))
+                raise ConfigurationError(
+                    "the provider requires the SurrealDB blocking WebSocket transport"
+                )
+            self._connection: BlockingWsSurrealConnection = connection
+            self._session: BlockingSurrealSession | None = None
+
+            try:
+                self._connection.signin({"username": config.username, "password": config.password})
+                self._connection.use(config.namespace, config.database)
+                session = self._connection.new_session()
+                session.signin({"username": config.username, "password": config.password})
+                session.use(config.namespace, config.database)
+                self._session = session
+            except BaseException as error:
+                self._connection.close()
+                self._closed = True
+                span.record_exception(error)
+                span.set_status(Status(StatusCode.ERROR, type(error).__name__))
+                raise
 
     @property
     def session(self) -> BlockingSurrealSession:
@@ -85,7 +99,15 @@ class SurrealConnection:
         time.  Callers should follow the same rule.
         """
 
-        return self.session.query(statement, dict(variables or {}))
+        with tracer.start_as_current_span("surrealdb.query", kind=SpanKind.CLIENT) as span:
+            span.set_attribute("db.system", "surrealdb")
+            span.set_attribute("db.operation", statement_kind(statement))
+            try:
+                return self.session.query(statement, dict(variables or {}))
+            except Exception as error:
+                span.record_exception(error)
+                span.set_status(Status(StatusCode.ERROR, type(error).__name__))
+                raise
 
     def raw_query(self, statement: str, variables: Mapping[str, Any] | None = None) -> Any:
         """Return the decoded SurrealQL value without provider conversion."""
@@ -112,6 +134,16 @@ class SurrealConnection:
     def ensure_schema(self) -> int:
         """Install the current schema idempotently, upgrading and rejecting safely."""
 
+        with tracer.start_as_current_span("surrealdb.ensure_schema", kind=SpanKind.CLIENT) as span:
+            span.set_attribute("db.system", "surrealdb")
+            try:
+                return self._ensure_schema_locked()
+            except Exception as error:
+                span.record_exception(error)
+                span.set_status(Status(StatusCode.ERROR, type(error).__name__))
+                raise
+
+    def _ensure_schema_locked(self) -> int:
         with self._schema_lock:
             self._ensure_open()
             if self._schema_ready:

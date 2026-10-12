@@ -8,8 +8,14 @@ explicitly enabled, and strictly metadata-only.
 
 | Span | Attributes |
 | --- | --- |
-| `pytest::session` (one per run) | command and marker selection, commit SHA and dirty status, ActiveGraph / adaptor / SDK / Python versions, OS, exit status, pass/fail/skip/xfail counts |
-| `pytest::<nodeid>` (one per test) | node id, layer (the five layers from [conformance.md](conformance.md)), outcome, duration |
+| `pytest::session` (one per run) | command and marker selection, commit SHA / branch / dirty status, CI provider / run id / run URL / actor, ActiveGraph / adaptor / SDK / Python versions, SurrealDB server version and lane host (host only), OS, exit status, session wall time, per-layer latency percentiles (p50/p95/max), pass/fail/skip/xfail counts |
+| `pytest::<nodeid>` (one per test) | node id, layer (the five layers from [conformance.md](conformance.md)), outcome, total duration, setup/call/teardown phase breakdown |
+| `surrealdb.*` / `activegraph.*` (adaptor, see below) | operation identity, statement class, outcome, duration |
+
+The SurrealDB server version is probed once per session through the same
+SDK transport the provider uses when `ACTIVEGRAPH_SURREALDB_TEST_URL` is
+set. The probe is bounded (3 s) and fail-open: an unreachable or slow lane
+reports `unknown` and never delays or fails the run.
 
 Released-conformance cases (`tests/integration/*conformance.py`) also carry
 OpenInference evaluation attributes on their span, which Arize AX renders as
@@ -56,7 +62,28 @@ The endpoint and `space_id`/`api_key`/`Arize-Project` headers follow the
 standard Arize AX OpenTelemetry ingestion convention; adjust
 `ARIZE_OTLP_ENDPOINT` for region-specific or self-hosted ingestion.
 
-## Security posture
+## Adaptor instrumentation
+
+The provider itself emits OpenTelemetry spans through the API
+(`src/activegraph_surrealdb/instrument.py`), which is a hard no-op until an
+SDK provider is configured — store behavior and dependencies are unaffected
+when no exporter is installed. When the test telemetry plugin is enabled, it
+installs its exporter as the global provider, so adaptor spans flow to the
+same destination as the pytest spans:
+
+- `surrealdb.connect` — one per store construction: namespace, database, and
+  the lane host. This is the bootstrap latency signal.
+- `surrealdb.query` — one per session round-trip: the statement class
+  (`SELECT`, `CREATE`, `UPDATE`, `RELATE`, ... as `db.operation`) and
+  outcome. Statement text and bound variables are never recorded.
+- `surrealdb.ensure_schema` — schema installation and upgrade.
+- `activegraph.event_store.*` / `activegraph.graph_store.*` — one per
+  provider operation (append, iter, match chain, neighborhood, ...), with
+  the per-statement spans nested inside. These carry the operation-latency
+  distributions that the case-level durations average away.
+
+Spans carry operation identity, outcome, and duration only: no payloads, no
+ids beyond host and namespace/database names, no credentials.
 
 - Only metadata is exported: test identities, outcomes, durations, and
   environment versions. Event payloads, graph objects, relations, patch

@@ -16,6 +16,7 @@ from surrealdb import RecordID, Table
 from .config import SurrealConfig
 from .connection import SurrealConnection
 from .errors import ClosedStoreError, SurrealProviderError
+from .instrument import traced
 from .serde import (
     object_from_record,
     object_to_record,
@@ -71,6 +72,7 @@ class SurrealGraphStore(GraphStore):
     # ------------------------------------------------------------------
     # Object projection
 
+    @traced("graph_store.put_object")
     def put_object(self, obj: Object) -> None:
         self._assert_writable()
         content = {
@@ -81,6 +83,7 @@ class SurrealGraphStore(GraphStore):
         }
         self._connection.session.upsert(self.vertex_record_id(obj.id), content)
 
+    @traced("graph_store.get_object")
     def get_object(self, object_id: str) -> Object | None:
         self._assert_readable()
         row = _one(self._connection.session.select(self.vertex_record_id(object_id)))
@@ -89,6 +92,7 @@ class SurrealGraphStore(GraphStore):
         self._assert_scoped_row(row, "object_id", object_id)
         return object_from_record(row)
 
+    @traced("graph_store.remove_object")
     def remove_object(self, object_id: str) -> None:
         self._assert_writable()
         record = self.vertex_record_id(object_id)
@@ -101,6 +105,7 @@ class SurrealGraphStore(GraphStore):
             self._placeholder_content(object_id),
         )
 
+    @traced("graph_store.all_objects")
     def all_objects(self) -> list[Object]:
         self._assert_readable()
         rows = _rows(
@@ -115,6 +120,7 @@ class SurrealGraphStore(GraphStore):
     # ------------------------------------------------------------------
     # Native relation projection
 
+    @traced("graph_store.put_relation")
     def put_relation(self, rel: Relation) -> None:
         self._assert_writable()
         source = self.vertex_record_id(rel.source)
@@ -142,6 +148,7 @@ class SurrealGraphStore(GraphStore):
                 transaction.cancel()
             raise
 
+    @traced("graph_store.get_relation")
     def get_relation(self, relation_id: str) -> Relation | None:
         self._assert_readable()
         row = _one(self._connection.session.select(self._relation_record_id(relation_id)))
@@ -150,10 +157,12 @@ class SurrealGraphStore(GraphStore):
         self._assert_scoped_row(row, "relation_id", relation_id)
         return record_to_relation(row)
 
+    @traced("graph_store.remove_relation")
     def remove_relation(self, relation_id: str) -> None:
         self._assert_writable()
         self._connection.session.delete(self._relation_record_id(relation_id))
 
+    @traced("graph_store.all_relations")
     def all_relations(self) -> list[Relation]:
         self._assert_readable()
         rows = _rows(
@@ -181,6 +190,7 @@ class SurrealGraphStore(GraphStore):
     # ``query_objects`` returns the plan's ``where`` unchanged as the residual
     # and lets ``Graph`` evaluate it in Python.
 
+    @traced("graph_store.query_objects")
     def query_objects(self, plan: ObjectQuery) -> ObjectQueryResult:
         """Execute the structural portion of an object plan inside SurrealDB."""
 
@@ -191,12 +201,14 @@ class SurrealGraphStore(GraphStore):
         limit = plan.limit if not residual else None
         return ObjectQueryResult(self._select_objects(plan.type, limit=limit), residual)
 
+    @traced("graph_store.find_objects")
     def find_objects(self, type: str | None = None) -> list[Object]:
         """Return objects filtered by ``type`` in SurrealDB (``None`` = any)."""
 
         self._assert_readable()
         return self._select_objects(type)
 
+    @traced("graph_store.find_objects_in_types")
     def find_objects_in_types(self, types: list[str]) -> list[Object]:
         """Return objects whose type is any of ``types`` (OR) in one query."""
 
@@ -213,6 +225,7 @@ class SurrealGraphStore(GraphStore):
         )
         return [object_from_record(row) for row in rows]
 
+    @traced("graph_store.find_relations")
     def find_relations(
         self,
         source: str | None = None,
@@ -238,6 +251,7 @@ class SurrealGraphStore(GraphStore):
             record_to_relation(row) for row in _rows(self._connection.query(statement, variables))
         ]
 
+    @traced("graph_store.neighborhood")
     def neighborhood(self, object_id: str, depth: int = 1) -> tuple[list[Object], list[Relation]]:
         """Undirected breadth-first walk resolved by scoped SurrealQL per level.
 
@@ -336,6 +350,7 @@ class SurrealGraphStore(GraphStore):
     # ------------------------------------------------------------------
     # Patch projection
 
+    @traced("graph_store.put_patch")
     def put_patch(self, patch: Patch) -> None:
         self._assert_writable()
         self._connection.session.upsert(
@@ -347,6 +362,7 @@ class SurrealGraphStore(GraphStore):
             },
         )
 
+    @traced("graph_store.get_patch")
     def get_patch(self, patch_id: str) -> Patch | None:
         self._assert_readable()
         row = _one(self._connection.session.select(self._patch_record_id(patch_id)))
@@ -355,6 +371,7 @@ class SurrealGraphStore(GraphStore):
         self._assert_scoped_row(row, "patch_id", patch_id)
         return patch_from_record(row)
 
+    @traced("graph_store.all_patches")
     def all_patches(self) -> list[Patch]:
         self._assert_readable()
         rows = _rows(
@@ -366,6 +383,7 @@ class SurrealGraphStore(GraphStore):
         )
         return [patch_from_record(row) for row in rows]
 
+    @traced("graph_store.remove_patch")
     def remove_patch(self, patch_id: str) -> None:
         self._assert_writable()
         self._connection.session.delete(self._patch_record_id(patch_id))
@@ -373,6 +391,7 @@ class SurrealGraphStore(GraphStore):
     # ------------------------------------------------------------------
     # Projection lifecycle
 
+    @traced("graph_store.begin_rebuild")
     def begin_rebuild(self) -> None:
         """Make the projection unreadable, then clear its isolated state."""
 
@@ -381,11 +400,13 @@ class SurrealGraphStore(GraphStore):
         self._rebuilding_here = True
         self.clear()
 
+    @traced("graph_store.mark_ready")
     def mark_ready(self) -> None:
         self._ensure_open()
         self._set_projection_status("ready", error=None)
         self._rebuilding_here = False
 
+    @traced("graph_store.mark_failed")
     def mark_failed(self, error: BaseException | str | None = None) -> None:
         self._ensure_open()
         # Persist a diagnostic class/name, never an SDK exception string that
@@ -399,6 +420,7 @@ class SurrealGraphStore(GraphStore):
         self._set_projection_status("failed", error=detail)
         self._rebuilding_here = False
 
+    @traced("graph_store.projection_status")
     def projection_status(self) -> str:
         self._ensure_open()
         row = self._projection_row()
@@ -406,6 +428,7 @@ class SurrealGraphStore(GraphStore):
             raise ProjectionUnavailableError("projection metadata is incomplete")
         return str(row.get("status", "failed"))
 
+    @traced("graph_store.clear")
     def clear(self) -> None:
         """Delete only this scope/run's disposable graph projection."""
 
