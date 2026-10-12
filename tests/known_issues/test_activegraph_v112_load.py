@@ -7,7 +7,7 @@ from activegraph import Runtime, SQLiteEventStore
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="Tracked upstream as yoheinakajima/activegraph#81",
+    reason="Still open upstream in ActiveGraph 1.12.0: yoheinakajima/activegraph#81",
 )
 def test_unknown_run_load_does_not_create_phantom_run(tmp_path) -> None:
     database = str(tmp_path / "runs.sqlite")

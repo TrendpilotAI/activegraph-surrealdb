@@ -22,7 +22,8 @@ from .config import SurrealConfig
 from .errors import ClosedStoreError, ConfigurationError, LedgerIntegrityError
 from .keys import record_key
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+_MIN_SCHEMA_VERSION = 1
 SCHEMA_RECORD = RecordID("ag_schema", "singleton")
 _VERSION_RE = re.compile(r"(?:surrealdb[- ]v?)?(?P<version>\d+\.\d+\.\d+)", re.I)
 
@@ -109,7 +110,7 @@ class SurrealConnection:
         return match.group("version") if match else raw
 
     def ensure_schema(self) -> int:
-        """Install schema v1 idempotently and reject unknown schema versions."""
+        """Install the current schema idempotently, upgrading and rejecting safely."""
 
         with self._schema_lock:
             self._ensure_open()
@@ -177,6 +178,15 @@ class SurrealConnection:
             if current is None:
                 raise LedgerIntegrityError("the provider schema record is missing")
             self._assert_schema_version(current)
+            current_version = int(current["version"])
+            if current_version < SCHEMA_VERSION:
+                # Additive upgrade: schema.surql uses IF NOT EXISTS, so the new
+                # indexes already exist by the time we reach here. Record the
+                # higher version only after that DDL has succeeded.
+                self.query(
+                    "UPDATE ONLY $schema SET version = $version;",
+                    {"schema": SCHEMA_RECORD, "version": SCHEMA_VERSION},
+                )
             self._schema_ready = True
             return SCHEMA_VERSION
 
@@ -198,9 +208,15 @@ class SurrealConnection:
             version = int(row["version"])
         except (KeyError, TypeError, ValueError) as exc:
             raise LedgerIntegrityError("the provider schema version is absent or invalid") from exc
-        if version != SCHEMA_VERSION:
+        if version > SCHEMA_VERSION:
             raise LedgerIntegrityError(
-                f"unsupported provider schema version {version}; expected {SCHEMA_VERSION}"
+                f"provider schema version {version} is newer than this provider "
+                f"supports (maximum {SCHEMA_VERSION})"
+            )
+        if version < _MIN_SCHEMA_VERSION:
+            raise LedgerIntegrityError(
+                f"provider schema version {version} predates the supported "
+                f"minimum {_MIN_SCHEMA_VERSION}"
             )
 
     def _ensure_open(self) -> None:

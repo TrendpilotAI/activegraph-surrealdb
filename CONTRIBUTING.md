@@ -43,11 +43,12 @@ the named container and must never target a shared or production service.
 Useful checks:
 
 ```bash
-ruff check src examples
-ruff format --check src examples
+ruff check src tests examples
+ruff format --check src tests examples
 mypy
 pytest -m 'not surrealdb and not qualification'
 pytest -m surrealdb tests/integration
+ACTIVEGRAPH_PACKS_PATH=/path/to/activegraph-packs pytest -m packs tests/packs
 python -m build
 python -m twine check dist/*
 git diff --check

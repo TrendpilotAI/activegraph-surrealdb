@@ -7,7 +7,7 @@ credential.
 
 ## Inputs to the design
 
-- public ActiveGraph `1.10.0` interfaces and conformance suites;
+- public ActiveGraph `1.12.0` interfaces and conformance suites;
 - public ActiveGraph issues and pull requests cited in the known-issue tests;
 - public SurrealDB `3.2.4` and Python SDK `2.0.0` documentation/interfaces; and
 - generic, synthetic examples created for this provider.

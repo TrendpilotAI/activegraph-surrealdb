@@ -9,7 +9,7 @@ The production-qualification lane targets:
 
 - SurrealDB server `3.2.4` (current stable on 2026-08-30)
 - SurrealDB Python SDK `2.0.x`
-- Python `3.11+`, matching ActiveGraph v1.10
+- Python `3.11+`, matching ActiveGraph v1.12
 - remote WebSocket (`ws://` for the required local qualification lane)
 - a server process backed by RocksDB
 

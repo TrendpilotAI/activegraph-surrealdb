@@ -1,5 +1,7 @@
--- ActiveGraph SurrealDB provider schema, version 1.
--- All logical identifiers are retained as fields; record IDs are opaque hashes.
+-- ActiveGraph SurrealDB provider schema, version 2.
+-- Every statement is IF NOT EXISTS, so applying this file to a v1 database
+-- upgrades it in place by adding the v2 indexes below. All logical identifiers
+-- are retained as fields; record IDs are opaque hashes.
 
 DEFINE TABLE IF NOT EXISTS ag_schema SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS version ON TABLE ag_schema TYPE int;
@@ -52,6 +54,10 @@ DEFINE FIELD IF NOT EXISTS data_json ON TABLE ag_vertex TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS version ON TABLE ag_vertex TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS provenance_json ON TABLE ag_vertex TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_id ON TABLE ag_vertex FIELDS scope, run_id, object_id UNIQUE;
+-- Schema v2: support the native query pushdown (type filters, existence probes,
+-- and the per-level neighbourhood walk) without scanning the whole graph.
+DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_present ON TABLE ag_vertex FIELDS scope, run_id, object_present;
+DEFINE INDEX IF NOT EXISTS ag_vertex_scope_run_type ON TABLE ag_vertex FIELDS scope, run_id, object_type;
 
 DEFINE TABLE IF NOT EXISTS ag_relation SCHEMAFULL TYPE RELATION IN ag_vertex OUT ag_vertex;
 DEFINE FIELD IF NOT EXISTS scope ON TABLE ag_relation TYPE string;
@@ -63,6 +69,11 @@ DEFINE FIELD IF NOT EXISTS relation_type ON TABLE ag_relation TYPE string;
 DEFINE FIELD IF NOT EXISTS data_json ON TABLE ag_relation TYPE string;
 DEFINE FIELD IF NOT EXISTS provenance_json ON TABLE ag_relation TYPE string;
 DEFINE INDEX IF NOT EXISTS ag_relation_scope_run_id ON TABLE ag_relation FIELDS scope, run_id, relation_id UNIQUE;
+-- Schema v2: indexed endpoints and type for pushed-down relation lookups and
+-- the neighbourhood BFS frontier queries.
+DEFINE INDEX IF NOT EXISTS ag_relation_scope_run_source ON TABLE ag_relation FIELDS scope, run_id, source;
+DEFINE INDEX IF NOT EXISTS ag_relation_scope_run_target ON TABLE ag_relation FIELDS scope, run_id, target;
+DEFINE INDEX IF NOT EXISTS ag_relation_scope_run_type ON TABLE ag_relation FIELDS scope, run_id, relation_type;
 
 DEFINE TABLE IF NOT EXISTS ag_patch SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS scope ON TABLE ag_patch TYPE string;

@@ -3,7 +3,7 @@
 - Status: accepted for the research preview
 - Date: 2026-08-30
 - Decision owners: TrendpilotAI
-- Upstream baseline: ActiveGraph `v1.10.0` (`148e12c2969f18fa12a1a3c2e75f3affd9aa0616`)
+- Upstream baseline: ActiveGraph `v1.12.0` (`50d8405923b79e4e823a73a3045bb969436a872c`)
 
 ## Context
 
@@ -46,7 +46,8 @@ resume. Those require upstream lifecycle and driver-registry contracts.
 - Event order is gap-free and protected by a written per-run head record.
 - A stale writer fails closed; it never silently rebases on a newer head.
 - Exact JSON is retained for replay, including explicit `null` values.
-- Graph reads come from SurrealDB, not an in-process mirror.
+- Graph reads come from SurrealDB, not an in-process mirror, and the released
+  query hooks are pushed down rather than scanned in Python.
 - Relations are native edges with `in` and `out` record endpoints. A separate
   vertex table permits ActiveGraph's valid dangling-edge semantics.
 - Schema migration is explicit, versioned, additive, and fail-closed on an
@@ -61,15 +62,17 @@ resume. Those require upstream lifecycle and driver-registry contracts.
 
 ## Atomicity boundary
 
-ActiveGraph v1.10 projects an event before calling `EventStore.append()`. A
-provider cannot atomically combine the two writes without depending on that
-private order. Pending PR #78 reverses the order, which is safer for an
-authoritative log but still does not expose a shared transaction coordinator.
+ActiveGraph v1.12 persists an event before projecting it (CONTRACT v1.11 #2),
+which removes the earlier v1.10 hazard where a rejected append could still leave
+projected state. A provider still cannot atomically combine the two writes: the
+runtime exposes no shared transaction coordinator across the event store and the
+graph store.
 
 Therefore the research preview does not advertise atomic event-plus-projection
-acceptance. A failed live write may require replay to repair the projection.
-The proposed future capability is an optional runtime-owned coordinator whose
-database-specific transaction implementation remains in this package.
+acceptance. A projection failure after a successful append may require replay to
+repair the projection. The proposed future capability is an optional
+runtime-owned coordinator whose database-specific transaction implementation
+remains in this package.
 
 ## Consequences
 
@@ -85,7 +88,7 @@ Positive:
 
 Negative:
 
-- Applications must wire stores manually on ActiveGraph v1.10.
+- Applications must wire stores manually on ActiveGraph v1.12.
 - Replay is the recovery mechanism for cross-store partial failure.
 - Full fork/resume behavior is a provider helper rather than an upstream URL
   driver until ActiveGraph accepts a store-neutral lifecycle contract.

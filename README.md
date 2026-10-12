@@ -50,7 +50,7 @@ contract against a pinned, repeatable configuration.
 
 | Component | Baseline |
 | --- | --- |
-| ActiveGraph | `1.10.0` |
+| ActiveGraph | `1.12.0` |
 | SurrealDB server | `3.2.4` stable |
 | SurrealDB Python SDK | `2.0.0` |
 | Python | `3.11+` |
@@ -75,9 +75,49 @@ flowchart LR
 ```
 
 The two stores may share a namespace and database, but they do not share an
-ActiveGraph-owned transaction. On ActiveGraph `1.10.0`, a runtime operation can
-project before its event append succeeds. Replay is the documented repair path;
-the provider does **not** claim atomic event-plus-projection acceptance.
+ActiveGraph-owned transaction. On ActiveGraph `1.12.0`, a runtime operation
+persists its event before projecting it (CONTRACT v1.11 #2), so a rejected
+append leaves no projected state. The projection is still a separate write: if
+it fails after a successful append, replay is the documented repair path and the
+provider does **not** claim atomic event-plus-projection acceptance.
+
+## Taking advantage of one database
+
+Because the event log and the graph projection share one deployment, the
+provider pushes the released `GraphStore` query hooks down into SurrealQL rather
+than scanning in Python. Object type filters, relation source/target/type
+filters, existence probes, and the undirected neighbourhood walk are all bound
+SurrealQL; `match_chain` composes those pushed-down primitives hop by hop. The
+rich `where` predicate stays with ActiveGraph and is returned as an exact
+residual, per the released contract. Schema v2 adds the indexes those queries
+use. See [ADR 0003](docs/adr/0003-native-query-pushdown.md).
+
+## Pack library
+
+The provider ships a harness that loads the published
+[ActiveGraph pack library](https://github.com/yoheinakajima/activegraph-packs)
+onto a `Runtime` whose event log and graph projection both live in SurrealDB:
+
+```python
+from activegraph_surrealdb import SurrealConfig, build_runtime
+
+handle = build_runtime(
+    SurrealConfig(endpoint="ws://127.0.0.1:8000", namespace="activegraph",
+                  database="assistant", username="root", password="root"),
+    run_id="run_1",
+    scope="assistant",
+)
+handle.runtime.graph.add_object("source", {"kind": "note", "content": "..."})
+handle.runtime.run_until_idle()
+handle.close()
+```
+
+Point the harness at a checkout with `ACTIVEGRAPH_PACKS_PATH` (default: the
+reference checkout). The `packs` test lane proves core, infrastructure,
+communication (including composio), bridges, mcp, attention, evolution,
+semantic_extraction, eval_outcome, activity_normalizer, connector_control,
+skills, usage, and the importers all load and project into one SurrealDB
+database.
 
 Read the full [architecture](docs/architecture.md) and [security model](docs/security-model.md).
 
@@ -120,6 +160,7 @@ Run the contract layers separately:
 ```bash
 pytest -m 'not surrealdb and not qualification'
 pytest -m surrealdb tests/integration
+pytest -m packs tests/packs
 python examples/replay_fork_diff.py
 ```
 
@@ -136,9 +177,11 @@ interpreting a green result.
 ## Project map
 
 - `src/activegraph_surrealdb/`: provider implementation
-- `tests/`: unit, live integration, qualification, and upstream-known-issue contracts
+- `src/activegraph_surrealdb/harness.py`: load the pack library onto a SurrealDB Runtime
+- `tests/`: unit, live integration, qualification, pack-harness, and upstream-known-issue contracts
 - `examples/replay_fork_diff.py`: small fork/diff/replay experiment
-- `docs/adr/`: authority and version decisions
+- `examples/combined_store_pack.py`: a pack running on one SurrealDB event+graph store
+- `docs/adr/`: authority, version, and pushdown decisions
 - `docs/`: architecture, operations, evidence, security, and provenance
 
 ## Contributing and security

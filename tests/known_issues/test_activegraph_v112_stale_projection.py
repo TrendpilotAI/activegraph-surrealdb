@@ -7,7 +7,7 @@ from activegraph import Graph, InMemoryGraphStore, Runtime
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="Tracked upstream as yoheinakajima/activegraph#82",
+    reason="Still open upstream in ActiveGraph 1.12.0: yoheinakajima/activegraph#82",
 )
 def test_runtime_load_replaces_stale_projection(tmp_path) -> None:
     database = str(tmp_path / "runs.sqlite")
