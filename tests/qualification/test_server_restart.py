@@ -109,7 +109,7 @@ def test_rocksdb_survives_restart_and_abrupt_container_termination(
     recovered = SurrealEventStore(config, run_id="run", scope=scope)
     assert [event.id for event in recovered.iter_events()] == ["evt_1", "evt_2"]
     assert recovered.verify_integrity().next_seq == 2
-    assert recovered.schema_version() == "1"
+    assert recovered.schema_version() == "2"
     assert recovered.raw_query(
         "SELECT VALUE payload_json FROM ag_event "
         "WHERE scope = $scope AND run_id = $run_id AND event_id = $event_id;",
