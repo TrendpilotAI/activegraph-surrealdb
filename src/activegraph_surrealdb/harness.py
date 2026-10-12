@@ -18,6 +18,7 @@ import importlib
 import os
 import sys
 from collections.abc import Iterable, Mapping, Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -97,6 +98,27 @@ def _ensure_importable(root: Path) -> None:
     entry = str(root)
     if entry not in sys.path:
         sys.path.insert(0, entry)
+    _evict_foreign_packs(root)
+
+
+def _evict_foreign_packs(root: Path) -> None:
+    """Drop a cached ``packs`` package that came from a different checkout.
+
+    ``sys.path`` only decides the *first* import: once ``packs`` is cached, a
+    later call with a different ``root`` would silently reuse the cached
+    modules instead of the requested checkout. Evict the cached package (and
+    its submodules) so the requested root wins.
+    """
+
+    cached = sys.modules.get("packs")
+    if cached is None:
+        return
+    expected = (root / "packs").resolve()
+    cached_paths = {Path(entry).resolve() for entry in getattr(cached, "__path__", [])}
+    if expected in cached_paths:
+        return
+    for name in [name for name in sys.modules if name == "packs" or name.startswith("packs.")]:
+        del sys.modules[name]
 
 
 def import_pack(module_name: str, *, root: Path | None = None) -> ModuleType:
@@ -128,8 +150,12 @@ class SurrealPackRuntime:
     loaded_packs: list[str] = field(default_factory=list)
 
     def close(self) -> None:
-        self.event_store.close()
-        self.graph_store.close()
+        try:
+            self.event_store.close()
+        finally:
+            # Even if the event store's teardown raises, the graph store keeps
+            # an independent connection that must still be closed.
+            self.graph_store.close()
 
 
 def build_runtime(
@@ -147,25 +173,26 @@ def build_runtime(
     ``Runtime.load_pack``; packs not named there use their declared defaults.
     """
 
-    event_store = SurrealEventStore(config, run_id=run_id, scope=scope)
-    graph_store = SurrealGraphStore(config, run_id=run_id, scope=scope)
-    graph = Graph(run_id=run_id, graph_store=graph_store)
-    runtime = Runtime(graph, store=event_store)
+    with ExitStack() as stack:
+        event_store = SurrealEventStore(config, run_id=run_id, scope=scope)
+        stack.callback(event_store.close)
+        graph_store = SurrealGraphStore(config, run_id=run_id, scope=scope)
+        stack.callback(graph_store.close)
+        graph = Graph(run_id=run_id, graph_store=graph_store)
+        runtime = Runtime(graph, store=event_store)
 
-    handle = SurrealPackRuntime(
-        config=config,
-        run_id=run_id,
-        scope=scope,
-        runtime=runtime,
-        event_store=event_store,
-        graph_store=graph_store,
-    )
-    try:
+        handle = SurrealPackRuntime(
+            config=config,
+            run_id=run_id,
+            scope=scope,
+            runtime=runtime,
+            event_store=event_store,
+            graph_store=graph_store,
+        )
         _load_modules(runtime, handle, modules, settings or {}, root)
-    except BaseException:
-        handle.close()
-        raise
-    return handle
+        # Success: detach the teardown callbacks so the stores stay open.
+        stack.pop_all()
+        return handle
 
 
 def _load_modules(
