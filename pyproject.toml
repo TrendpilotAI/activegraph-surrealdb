@@ -22,7 +22,7 @@ classifiers = [
   "Topic :: Database",
 ]
 dependencies = [
-  "activegraph==1.10.0",
+  "activegraph==1.12.0",
   "surrealdb==2.0.0",
 ]
 
@@ -42,6 +42,11 @@ packages = ["src/activegraph_surrealdb"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+markers = [
+  "surrealdb: requires a live SurrealDB test server",
+  "qualification: controls a pinned Docker qualification server",
+  "packs: loads the external ActiveGraph pack library onto SurrealDB",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -56,7 +61,7 @@ python_version = "3.11"
 strict = true
 files = ["src", "examples"]
 mypy_path = "src"
-# ActiveGraph 1.10 exposes typed-looking classes without a PEP 561 marker.
+# ActiveGraph 1.12 exposes typed-looking classes without a PEP 561 marker.
 disallow_subclassing_any = false
 
 [[tool.mypy.overrides]]

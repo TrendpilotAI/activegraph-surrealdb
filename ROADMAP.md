@@ -6,7 +6,7 @@ only when the previous boundary is repeatably demonstrated.
 ## Phase 0 — Contract-first research preview
 
 - [x] Separate authoritative event and disposable graph responsibilities.
-- [x] Pin ActiveGraph `1.10.0`, SurrealDB `3.2.4`, and Python SDK `2.0.0` lanes.
+- [x] Pin ActiveGraph `1.12.0`, SurrealDB `3.2.4`, and Python SDK `2.0.0` lanes.
 - [x] Define serialization, isolation, replay, fork/diff, and qualification contracts.
 - [x] Record upstream lifecycle limitations without private runtime patches.
 
@@ -16,21 +16,23 @@ only when the previous boundary is repeatably demonstrated.
 - [x] Pass released EventStore and GraphStore conformance.
 - [x] Implement transactional append/head checks and deterministic stale-writer tests.
 - [x] Implement native relation storage without an in-memory mirror.
-- [ ] Push neighborhood and chain matching into native SurrealQL queries.
+- [x] Push object, relation, existence, and neighbourhood queries into native SurrealQL; `match_chain` composes those primitives.
 - [x] Implement fail-closed replay readiness and uncompacted prefix forks.
+- [x] Load the published pack library onto one SurrealDB-backed Runtime.
 - [x] Publish reproducible fork/diff/replay trace evidence.
 
 ## Phase 2 — Stable qualification
 
 - [x] Pass live isolation, rollback, native-edge, and exact-JSON tests.
 - [ ] Pass pinned RocksDB graceful restart and abrupt container termination tests.
-- [ ] Add an existing-database upgrade and rollback lane before changing support.
+- [x] Add an in-place, data-preserving schema upgrade lane and reject a newer schema.
+- [ ] Add a schema rollback lane before changing support.
 - [ ] Exercise backup and clean-environment restore, then verify event integrity and replay.
 - [ ] Record bounded performance observations on controlled, representative data.
 
 ## Phase 3 — Upstream lifecycle alignment
 
-- [ ] Re-evaluate append/projection ordering after an ActiveGraph release incorporates it.
+- [x] Re-evaluate append/projection ordering after ActiveGraph 1.12 incorporated it (CONTRACT v1.11 #2).
 - [ ] Adopt a public store-driver/registry contract if upstream accepts one.
 - [ ] Adopt store-neutral load/resume without phantom-run or stale-projection behavior.
 - [ ] Design snapshot/compaction hydration only against an explicit upstream contract.

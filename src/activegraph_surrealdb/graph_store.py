@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
 from activegraph.core.graph import Object, Relation
-from activegraph.core.graph_store import GraphStore
+from activegraph.core.graph_store import GraphStore, ObjectQuery, ObjectQueryResult
 from activegraph.core.patch import Patch
 from surrealdb import RecordID, Table
 
@@ -36,6 +37,12 @@ class SurrealGraphStore(GraphStore):
     object turns its vertex back into a placeholder so SurrealDB does not
     cascade-delete still-valid ActiveGraph relations.  Edges themselves are
     records in the fixed ``ag_relation TYPE RELATION`` table.
+
+    The released query hooks are overridden with bound SurrealQL so object,
+    relation, existence, and neighbourhood lookups run in the database rather
+    than scanning in Python; ``match_chain`` composes those primitives.  The
+    rich ``where`` predicate is returned to ActiveGraph unchanged as the
+    residual, per the released contract.
     """
 
     def __init__(self, config: SurrealConfig, *, run_id: str, scope: str) -> None:
@@ -154,6 +161,174 @@ class SurrealGraphStore(GraphStore):
                 "SELECT * FROM ag_relation WHERE scope = $scope AND run_id = $run_id "
                 "ORDER BY relation_id ASC;",
                 self._scope_variables(),
+            )
+        )
+        return [record_to_relation(row) for row in rows]
+
+    # ------------------------------------------------------------------
+    # Native query pushdown
+    #
+    # ActiveGraph's GraphStore query hooks default to Python scans over
+    # ``all_objects`` / ``all_relations``. This provider overrides them so the
+    # structural work runs inside SurrealDB: object type filters, relation
+    # source/target/type filters, existence probes, and the undirected
+    # neighbourhood walk are all expressed as bound SurrealQL. ``match_chain``
+    # is inherited from the base class and therefore composes these
+    # pushed-down primitives hop by hop rather than scanning the whole graph.
+    #
+    # The rich ``where`` predicate stays with ActiveGraph: per the released
+    # contract a backend may only consume clauses it can prove equivalent, so
+    # ``query_objects`` returns the plan's ``where`` unchanged as the residual
+    # and lets ``Graph`` evaluate it in Python.
+
+    def query_objects(self, plan: ObjectQuery) -> ObjectQueryResult:
+        """Execute the structural portion of an object plan inside SurrealDB."""
+
+        self._assert_readable()
+        residual = copy.deepcopy(plan.where or {})
+        if plan.result_mode == "exists" and not residual:
+            return ObjectQueryResult([], {}, exists=self._object_exists(plan.type))
+        limit = plan.limit if not residual else None
+        return ObjectQueryResult(self._select_objects(plan.type, limit=limit), residual)
+
+    def find_objects(self, type: str | None = None) -> list[Object]:
+        """Return objects filtered by ``type`` in SurrealDB (``None`` = any)."""
+
+        self._assert_readable()
+        return self._select_objects(type)
+
+    def find_objects_in_types(self, types: list[str]) -> list[Object]:
+        """Return objects whose type is any of ``types`` (OR) in one query."""
+
+        if not types:
+            return []
+        self._assert_readable()
+        rows = _rows(
+            self._connection.query(
+                "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
+                "AND object_present = true AND object_type IN $types "
+                "ORDER BY object_id ASC;",
+                {**self._scope_variables(), "types": list(dict.fromkeys(types))},
+            )
+        )
+        return [object_from_record(row) for row in rows]
+
+    def find_relations(
+        self,
+        source: str | None = None,
+        target: str | None = None,
+        type: str | None = None,
+    ) -> list[Relation]:
+        """Return relations matching every provided filter inside SurrealDB."""
+
+        self._assert_readable()
+        statement = "SELECT * FROM ag_relation WHERE scope = $scope AND run_id = $run_id"
+        variables = self._scope_variables()
+        if source is not None:
+            statement += " AND source = $source"
+            variables["source"] = str(source)
+        if target is not None:
+            statement += " AND target = $target"
+            variables["target"] = str(target)
+        if type is not None:
+            statement += " AND relation_type = $relation_type"
+            variables["relation_type"] = str(type)
+        statement += " ORDER BY relation_id ASC;"
+        return [
+            record_to_relation(row) for row in _rows(self._connection.query(statement, variables))
+        ]
+
+    def neighborhood(self, object_id: str, depth: int = 1) -> tuple[list[Object], list[Relation]]:
+        """Undirected breadth-first walk resolved by scoped SurrealQL per level.
+
+        Each level issues one bound query for the relations incident to the
+        current frontier, mirroring the base class's level-by-level frontier
+        semantics (so placeholders and cycles resolve identically) without ever
+        loading relations that are not reachable from the start.
+        """
+
+        self._assert_readable()
+        start = str(object_id)
+        if self.get_object(start) is None:
+            return ([], [])
+        seen_objs: set[str] = {start}
+        frontier: set[str] = {start}
+        seen_rels: set[str] = set()
+        for _ in range(max(int(depth), 0)):
+            if not frontier:
+                break
+            rows = _rows(
+                self._connection.query(
+                    "SELECT * FROM ag_relation WHERE scope = $scope AND run_id = $run_id "
+                    "AND (source IN $frontier OR target IN $frontier) "
+                    "ORDER BY relation_id ASC;",
+                    {**self._scope_variables(), "frontier": sorted(frontier)},
+                )
+            )
+            snapshot = set(seen_objs)
+            next_frontier: set[str] = set()
+            for row in rows:
+                seen_rels.add(str(row["relation_id"]))
+                for endpoint in (str(row["source"]), str(row["target"])):
+                    if endpoint not in snapshot:
+                        next_frontier.add(endpoint)
+            seen_objs |= next_frontier
+            frontier = next_frontier
+        return (
+            self._objects_by_logical_ids(seen_objs),
+            self._relations_by_logical_ids(seen_rels),
+        )
+
+    def _select_objects(self, object_type: str | None, *, limit: int | None = None) -> list[Object]:
+        statement = (
+            "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
+            "AND object_present = true"
+        )
+        variables: dict[str, Any] = dict(self._scope_variables())
+        if object_type is not None:
+            statement += " AND object_type = $object_type"
+            variables["object_type"] = str(object_type)
+        statement += " ORDER BY object_id ASC"
+        if limit is not None:
+            statement += " LIMIT $limit"
+            variables["limit"] = int(limit)
+        statement += ";"
+        return [
+            object_from_record(row) for row in _rows(self._connection.query(statement, variables))
+        ]
+
+    def _object_exists(self, object_type: str | None) -> bool:
+        statement = (
+            "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
+            "AND object_present = true"
+        )
+        variables = self._scope_variables()
+        if object_type is not None:
+            statement += " AND object_type = $object_type"
+            variables["object_type"] = str(object_type)
+        statement += " LIMIT 1;"
+        return bool(_rows(self._connection.query(statement, variables)))
+
+    def _objects_by_logical_ids(self, object_ids: set[str]) -> list[Object]:
+        if not object_ids:
+            return []
+        rows = _rows(
+            self._connection.query(
+                "SELECT * FROM ag_vertex WHERE scope = $scope AND run_id = $run_id "
+                "AND object_present = true AND object_id IN $ids;",
+                {**self._scope_variables(), "ids": sorted(object_ids)},
+            )
+        )
+        return [object_from_record(row) for row in rows]
+
+    def _relations_by_logical_ids(self, relation_ids: set[str]) -> list[Relation]:
+        if not relation_ids:
+            return []
+        rows = _rows(
+            self._connection.query(
+                "SELECT * FROM ag_relation WHERE scope = $scope AND run_id = $run_id "
+                "AND relation_id IN $ids;",
+                {**self._scope_variables(), "ids": sorted(relation_ids)},
             )
         )
         return [record_to_relation(row) for row in rows]

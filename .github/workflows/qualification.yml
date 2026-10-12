@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "tests/integration/**"
+      - "tests/packs/**"
       - "tests/qualification/**"
       - "pyproject.toml"
       - "compose.yaml"
@@ -15,6 +16,7 @@ on:
     paths:
       - "src/**"
       - "tests/integration/**"
+      - "tests/packs/**"
       - "tests/qualification/**"
       - "pyproject.toml"
       - "compose.yaml"
@@ -79,6 +81,15 @@ jobs:
           exit 1
       - name: Run live integration contracts
         run: python -m pytest -m surrealdb tests/integration
+      - name: Check out pack library
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: yoheinakajima/activegraph-packs
+          path: .pack-library
+      - name: Run pack harness contracts
+        env:
+          ACTIVEGRAPH_PACKS_PATH: ${{ github.workspace }}/.pack-library
+        run: python -m pytest -m packs tests/packs
       - name: Run destructive qualification contracts
         env:
           ACTIVEGRAPH_SURREALDB_QUALIFY: "1"

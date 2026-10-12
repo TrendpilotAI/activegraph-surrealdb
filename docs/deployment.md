@@ -66,6 +66,21 @@ Tests isolate provider state with generated scopes and runs. Use a disposable
 database anyway. Do not point the test variables at production, shared staging,
 or customer data.
 
+## Pack harness lane
+
+The pack lane loads the external ActiveGraph pack library onto a Runtime whose
+event log and graph projection both live in the test database. Point the harness
+at a checkout:
+
+```bash
+ACTIVEGRAPH_PACKS_PATH=/path/to/activegraph-packs pytest -m packs tests/packs
+```
+
+When `ACTIVEGRAPH_PACKS_PATH` is unset the harness uses the reference checkout
+baked into this environment; the lane skips cleanly when neither is present. The
+lane is read-only with respect to the pack repository — it imports packs and
+loads them, and never modifies the checkout.
+
 ## Qualification lane
 
 Qualification checks the exact SDK/server versions, image command, RocksDB

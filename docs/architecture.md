@@ -70,20 +70,44 @@ The same logical event or object ID may exist in a different scope or run. A
 clear, truncate, fork, or replay operation must never cross that compound
 boundary.
 
+## Query pushdown
+
+The released `GraphStore` exposes optional query hooks that default to Python
+scans over `all_objects` / `all_relations`. `SurrealGraphStore` overrides them so
+the structural work runs in SurrealDB:
+
+- `query_objects` consumes the object type, applies an optional limit when no
+  residual predicate remains, and answers `result_mode="exists"` with a
+  `LIMIT 1` probe. It returns the plan's `where` unchanged as the residual, so
+  ActiveGraph keeps ownership of the rich predicate language.
+- `find_objects` / `find_objects_in_types` / `find_relations` filter by type,
+  source, and target in bound SurrealQL.
+- `neighborhood` walks the frontier one level at a time, querying only the
+  relations incident to the current frontier. This mirrors the base class's
+  level-by-level semantics exactly (placeholders and cycles included) without
+  loading unreachable relations.
+- `match_chain` is inherited from the base class and therefore composes the
+  pushed-down primitives hop by hop rather than scanning the whole graph.
+
+Schema v2 adds the `(scope, run_id, ...)` indexes these queries use. The
+pushdown is pinned by `tests/integration/test_graph_pushdown.py`, which disables
+the `all_objects` / `all_relations` fallback and then exercises every hook.
+
 ## Live writes are not cross-store atomic
 
-ActiveGraph `1.10.0` projects a live event before `EventStore.append()`. The two
-provider stores have independent SurrealDB transaction handles, and the runtime
+ActiveGraph `1.12.0` persists a live event before projecting it (CONTRACT
+v1.11 #2), so a rejected append changes no projected state. The two provider
+stores still have independent SurrealDB transaction handles, and the runtime
 does not expose a transaction coordinator spanning them. Therefore:
 
 - an event-store append is atomic with its own run head;
 - a graph mutation is atomic within its own store operation; but
 - the pair is not advertised as one atomic acceptance transaction.
 
-If the second step fails, operators must treat the event log as authority and
-rebuild the projection. A future runtime-owned transaction contract could
-coordinate the pair, but this provider must not emulate one with undocumented
-runtime internals.
+If the projection step fails after a successful append, operators must treat the
+event log as authority and rebuild the projection. A future runtime-owned
+transaction contract could coordinate the pair, but this provider must not
+emulate one with undocumented runtime internals.
 
 ## Replay lifecycle
 

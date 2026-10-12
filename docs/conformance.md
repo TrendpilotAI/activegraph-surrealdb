@@ -9,8 +9,12 @@ different claims.
 | Layer | Marker/path | What it establishes |
 | --- | --- | --- |
 | Serialization and configuration | unmarked unit tests | Canonical encoding, hashes, redaction, key scoping, and rejected paths |
+| Write ordering | `tests/test_write_ordering.py` | A rejected append leaves no projected state (ActiveGraph 1.12) |
 | Released ActiveGraph suites | `tests/integration/*conformance.py` | Compatibility with the public EventStore and GraphStore contracts |
+| Native query pushdown | `tests/integration/test_graph_pushdown.py` | The query hooks run in SurrealQL, not the Python full-scan fallback |
+| Schema upgrade | `tests/integration/test_schema_upgrade.py` | A v1 database upgrades in place; a newer schema is rejected |
 | Provider invariants | `pytest -m surrealdb` | Real server transactions, isolation, native edges, replay/fork/diff, restart within a live server |
+| Pack harness | `pytest -m packs tests/packs` | The published pack library loads and projects into one SurrealDB database |
 | Qualification | `pytest -m qualification` | Exact pinned image/SDK/engine and container restart/kill persistence |
 | Upstream known issues | `tests/known_issues` | Strict expected failures for lifecycle gaps outside this provider |
 
@@ -22,6 +26,7 @@ Install the development dependencies, then run the layers explicitly:
 python -m pip install -e '.[dev]'
 pytest -m 'not surrealdb and not qualification'
 pytest -m surrealdb tests/integration
+ACTIVEGRAPH_PACKS_PATH=/path/to/activegraph-packs pytest -m packs tests/packs
 ACTIVEGRAPH_SURREALDB_QUALIFY=1 pytest -m qualification tests/qualification
 ```
 
@@ -35,6 +40,10 @@ Promotion evidence must include at least:
 
 - released EventStore and GraphStore conformance;
 - exact JSON round-trip and literal canonical/hash golden values;
+- append-before-projection ordering (a rejected append leaves no projection);
+- native query pushdown for every overridden GraphStore hook;
+- an in-place, data-preserving schema upgrade and rejection of a newer schema;
+- loading the published pack library onto one SurrealDB-backed Runtime;
 - transaction rollback without an orphan event or advanced head;
 - deterministic same-run stale-writer rejection and independent run progress;
 - scope/run isolation across reads, clears, truncation, forks, and relations;

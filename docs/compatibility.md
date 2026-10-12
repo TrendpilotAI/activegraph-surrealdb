@@ -4,7 +4,7 @@
 
 | Component | Status | Notes |
 | --- | --- | --- |
-| ActiveGraph `1.10.0` | Baseline | Public store interfaces and released conformance suites |
+| ActiveGraph `1.12.0` | Baseline | Public store interfaces and released conformance suites |
 | SurrealDB server `3.2.4` | Required stable lane | Pinned Docker image, remote WebSocket, server-side RocksDB |
 | SurrealDB Python SDK `2.0.0` | Required | Exact dependency pin for the research preview |
 | SurrealDB `3.3.x` prerelease | Preview only | Forward-compatibility signal; never gates the stable lane |
@@ -38,18 +38,20 @@ by this provider.
 The provider does not patch private ActiveGraph runtime methods or register a
 database URL scheme. Stores are constructed explicitly.
 
-- [ActiveGraph PR #78](https://github.com/yoheinakajima/activegraph/pull/78)
-  proposes append-before-projection ordering and stronger run ownership. It is
-  not part of the released `1.10.0` baseline.
+- ActiveGraph `1.12.0` ships the append-before-projection ordering proposed by
+  [PR #78](https://github.com/yoheinakajima/activegraph/pull/78) as CONTRACT
+  v1.11 #2: a rejected durable append changes no projected state. The provider
+  asserts that invariant directly in `tests/test_write_ordering.py`.
 - [ActiveGraph issue #81](https://github.com/yoheinakajima/activegraph/issues/81)
   tracks `Runtime.load()` creating an unknown run instead of failing without a
-  mutation.
+  mutation. Still open in `1.12.0`.
 - [ActiveGraph issue #82](https://github.com/yoheinakajima/activegraph/issues/82)
   tracks replay into a stale supplied projection without clearing it first.
+  Still open in `1.12.0`.
 
-Strict expected-failure tests keep these limitations visible. An upstream fix
-that makes one unexpectedly pass is a prompt to review and update the provider,
-not to delete the test blindly.
+Strict expected-failure tests keep the remaining limitations visible. An
+upstream fix that makes one unexpectedly pass is a prompt to review and update
+the provider, not to delete the test blindly.
 
 ## Compaction
 
@@ -60,8 +62,16 @@ migration are not implemented by guessing at private runtime state.
 
 ## Claims this matrix does not make
 
-- ActiveGraph `1.11` compatibility before an upstream release is tested.
+- ActiveGraph `1.13` compatibility before an upstream release is tested.
 - Wire or storage compatibility across arbitrary SurrealDB versions.
 - Distributed SurrealDB, SurrealDB Cloud, or multi-node high availability.
 - TLS certificate, proxy, or workload-identity qualification.
 - Atomic event-plus-projection acceptance.
+
+## Provider schema
+
+The provider schema is versioned and additive. Schema v1 introduced the
+event/graph tables; schema v2 adds the indexes that back the native query
+pushdown. Opening a v1 database upgrades it in place without data loss; a
+database written by a newer provider is rejected rather than mis-read. The
+upgrade path is pinned by `tests/integration/test_schema_upgrade.py`.

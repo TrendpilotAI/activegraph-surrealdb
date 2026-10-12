@@ -76,7 +76,7 @@ not leak into the fork.
 The experiment does not prove:
 
 - atomic event-plus-projection acceptance;
-- behavior after an append failure in ActiveGraph `1.10.0`;
+- behavior after an append failure in ActiveGraph `1.12.0`;
 - snapshot/compaction or full `Runtime.load()` resume;
 - TLS, authorization, backup/restore, distributed availability, or upgrades;
 - representative performance or capacity; or
