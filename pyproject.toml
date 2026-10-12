@@ -36,6 +36,7 @@ dev = [
   "twine>=5,<7",
 ]
 telemetry = [
+  "arize>=8.58,<9",
   "opentelemetry-sdk>=1.28,<2",
   "opentelemetry-exporter-otlp-proto-http>=1.28,<2",
 ]

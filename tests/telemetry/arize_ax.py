@@ -26,6 +26,11 @@ from typing import Any
 
 import pytest
 
+from tests.telemetry.conformance_cases import (
+    LAYER_CONFORMANCE as CONFORMANCE_LAYER,
+)
+from tests.telemetry.conformance_cases import OUTCOME_SCORES
+
 ENV_ENABLE = "ACTIVEGRAPH_SURREALDB_ARIZE"
 ENV_SPACE_ID = "ARIZE_SPACE_ID"
 ENV_API_KEY = "ARIZE_API_KEY"
@@ -37,7 +42,6 @@ DEFAULT_PROJECT = "activegraph-surrealdb"
 EXPLANATION_LIMIT = 512
 FLUSH_TIMEOUT_MS = 15_000
 
-CONFORMANCE_LAYER = "released conformance"
 # Session exit statuses that do not indicate failed assertions:
 # 0 (all passed) and 5 (no tests collected).
 benign = (0, 5)
@@ -103,7 +107,7 @@ def _layer(item: pytest.Item) -> str:
     return "serialization and configuration"
 
 
-def _outcome(report: pytest.TestReport) -> str:
+def outcome(report: pytest.TestReport) -> str:
     wasxfail = bool(getattr(report, "wasxfail", False))
     if wasxfail and report.passed:
         return "xpassed"
@@ -240,9 +244,9 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         case = Case(nodeid=report.nodeid, layer="unknown")
         _STATE.cases[report.nodeid] = case
     case.duration += report.duration
-    outcome = _outcome(report)
-    if report.when == "call" or outcome in _deciding:
-        case.outcome = outcome
+    decided = outcome(report)
+    if report.when == "call" or decided in _deciding:
+        case.outcome = decided
         case.explanation = _explanation(report)
     if report.when != "teardown":
         return
@@ -257,13 +261,7 @@ def _evaluation_attributes(case: Case) -> dict[str, Any]:
         "evaluation.name": "conformance",
         "evaluation.label": case.outcome,
     }
-    score = {
-        "passed": 1.0,
-        "expected-failure": 1.0,
-        "failed": 0.0,
-        "xpassed": 0.0,
-        "xpass-strict": 0.0,
-    }.get(case.outcome)
+    score = OUTCOME_SCORES.get(case.outcome)
     if score is not None:
         attributes["evaluation.score"] = score
     if case.explanation is not None:

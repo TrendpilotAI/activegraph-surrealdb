@@ -69,6 +69,48 @@ standard Arize AX OpenTelemetry ingestion convention; adjust
 - Export failures print a warning and never fail the run. Telemetry is
   fail-open; the provider contracts remain fail-closed.
 
+## Rerunning the conformance suite in Arize AX
+
+The export reports what a run did. The mirror inverts the direction: the
+conformance contract itself becomes Arize AX datasets and experiments, so a
+rerun can be launched — and compared against previous runs — from Arize.
+
+`tests/telemetry/conformance_cases.py` enumerates the cases as data: the 11
+released event-store cases and 25 released graph-store cases (introspected
+from the pinned ActiveGraph conformance base classes, so the registry cannot
+drift from the suite) plus the upstream known issues with their tracker
+references. The CLI in `scripts/arize_conformance.py` operates on that
+registry:
+
+```bash
+python scripts/arize_conformance.py cases       # print the registry (offline)
+python scripts/arize_conformance.py sync        # one dataset per suite, idempotent
+python scripts/arize_conformance.py run         # live rerun as experiments
+python scripts/arize_conformance.py register    # register the AX evaluator
+```
+
+- **Datasets.** `sync` creates `event-store-conformance`,
+  `graph-store-conformance`, and `activegraph-known-issues` — one dataset per
+  suite, each example carrying the case's pytest node id, contract reference,
+  expected outcome, and suite/layer metadata.
+- **Live execution.** Each experiment task runs the real pytest case in a
+  subprocess against the pinned SurrealDB lane, so `run` needs
+  `ACTIVEGRAPH_SURREALDB_TEST_URL` (see [deployment.md](deployment.md)) in
+  addition to the Arize variables. Outcomes are captured with the same
+  vocabulary the telemetry plugin uses.
+- **Evaluators.** Scoring uses the mapping above (1.0 for `passed` and
+  `expected-failure`, 0.0 for `failed`/`xpassed`/`xpass-strict`, `skipped`
+  label-only). The local evaluator ships in
+  `tests/telemetry/scoring.py`; `register` publishes the same mapping to AX
+  as a code evaluator so the platform renders scores for reruns triggered
+  anywhere.
+- **Comparability.** Every experiment carries the commit SHA and the lane
+  host as run metadata, so scores are comparable across runs and against CI
+  exports of the same commit.
+
+The mirror inherits the security posture above: it exports case identities,
+outcomes, and durations only.
+
 ## Limitations
 
 - `pytest-xdist` is not supported: the plugin assumes a single process.
@@ -76,3 +118,6 @@ standard Arize AX OpenTelemetry ingestion convention; adjust
   manual evidence (see conformance.md), not of this export; the session span
   records what pytest can observe directly.
 - Interrupted sessions (Ctrl-C, crash) flush completed cases only.
+- The mirror tracks the released conformance suites and known issues; the
+  provider-invariant and qualification layers keep their CI-only evidence
+  paths.
