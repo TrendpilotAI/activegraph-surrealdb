@@ -6,6 +6,8 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .venv/
+.venv-embedded/
+dist/
 build/
 dist/
 .DS_Store

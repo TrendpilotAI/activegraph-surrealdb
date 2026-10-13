@@ -66,3 +66,18 @@ Negative:
 Python fallback raises instead of returning rows. The released
 `GraphStoreConformance` suite runs unchanged against the same store, so the
 pushed-down behavior is pinned to the canonical semantics.
+
+## Evidence
+
+Accepted on the strength of the 2026-10-13 evidence-ladder runs (SurrealDB
+`3.2.4`, native server lane per the recorded sandbox deviation, `agvm-8ii`):
+
+- `pytest -m surrealdb tests/integration` — 74 passed on server-side RocksDB
+  (`ws://`) and again over the TLS lane (`wss://` with enforced certificate
+  verification), including `test_graph_pushdown.py` with the Python fallback
+  disabled.
+- 74 passed on a dedicated SurrealKV volume (V7 lane, beta evidence).
+- Unit/contract ladder: 28 passed, 2 xfail (upstream #81/#82).
+
+The load-bearing `1.12.0` pin and the residual-predicate contract are re-proven
+on every one of those runs by the released conformance suites.

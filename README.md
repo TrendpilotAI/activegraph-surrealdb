@@ -104,8 +104,13 @@ onto a `Runtime` whose event log and graph projection both live in SurrealDB:
 from activegraph_surrealdb import SurrealConfig, build_runtime
 
 handle = build_runtime(
-    SurrealConfig(endpoint="ws://127.0.0.1:8000", namespace="activegraph",
-                  database="assistant", username="root", password="root"),
+    SurrealConfig(
+        endpoint="ws://127.0.0.1:8000",
+        namespace="activegraph",
+        database="assistant",
+        username="root",
+        password="root",
+    ),
     run_id="run_1",
     scope="assistant",
 )

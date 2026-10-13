@@ -26,8 +26,8 @@ only when the previous boundary is repeatably demonstrated.
 - [x] Pass live isolation, rollback, native-edge, and exact-JSON tests.
 - [ ] Pass pinned RocksDB graceful restart and abrupt container termination tests.
 - [x] Add an in-place, data-preserving schema upgrade lane and reject a newer schema.
-- [ ] Add a schema rollback lane before changing support.
-- [ ] Exercise backup and clean-environment restore, then verify event integrity and replay.
+- [x] Add a schema rollback lane before changing support.
+- [x] Exercise backup and clean-environment restore, then verify event integrity and replay.
 - [ ] Record bounded performance observations on controlled, representative data.
 
 ## Phase 3 — Upstream lifecycle alignment

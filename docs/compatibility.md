@@ -15,12 +15,21 @@
 | Path | Accepted by configuration | Qualification status |
 | --- | --- | --- |
 | `ws://` to pinned local server | Yes | Required qualification lane |
-| `wss://` to remote server | Yes | Syntax supported; no TLS qualification claim yet |
+| `wss://` to pinned local server | Yes | Preview TLS lane demonstrated: local CA via openssl, certificate verification enforced, full live suite green (2026-10-13). No rotation or workload-identity claim. |
 | HTTP/HTTPS | No | Stateful SDK transaction handles are WebSocket-only |
-| `mem://` embedded | No | Not durable and outside the provider preview |
-| embedded `file://`, `rocksdb://`, or `surrealkv://` | No | Persistence and transaction semantics are not qualified |
+| `mem://` embedded | No | Not durable and outside the provider preview; rejection pinned by `tests/embedded/test_embedded_lane.py` |
+| embedded `file://`, `rocksdb://`, or `surrealkv://` | No | Persistence and transaction semantics are not qualified; rejection pinned by `tests/embedded/test_embedded_lane.py` |
 | server-side RocksDB | Yes | Required stable storage path |
-| server-side SurrealKV | No recommendation | SurrealKV remains beta |
+| server-side SurrealKV | No recommendation | SurrealKV remains beta; full live integration suite green on a dedicated SurrealKV volume (V7 lane, 2026-10-13) |
+
+### Evidence recording note (2026-10-13)
+
+The V2/V4/V5/V6/V7 lane runs were recorded against the native `surreal v3.2.4`
+binary (same version as the pinned image) on fresh per-lane RocksDB/SurrealKV
+volumes, because the execution sandbox cannot run containers
+(`agvm-8ii`: devpts `gid=5` is unmappable without setuid `newuidmap`). The
+containerized qualification (compose bring-up, restart/kill sequences) remains
+the outstanding gap and is deferred to a VM-runtime sandbox.
 
 The Compose and qualification files intentionally pin complete versions. A new
 server or SDK release is unsupported until its own compatibility branch passes
@@ -65,7 +74,8 @@ migration are not implemented by guessing at private runtime state.
 - ActiveGraph `1.13` compatibility before an upstream release is tested.
 - Wire or storage compatibility across arbitrary SurrealDB versions.
 - Distributed SurrealDB, SurrealDB Cloud, or multi-node high availability.
-- TLS certificate, proxy, or workload-identity qualification.
+- TLS qualification beyond the pinned preview lane: public CAs, proxy
+  termination, least-privilege identities, and certificate rotation.
 - Atomic event-plus-projection acceptance.
 
 ## Provider schema
@@ -76,4 +86,7 @@ pushdown; schema v3 records the object counter that gives projection reads the
 reference store's insertion order. Opening an older database upgrades it in
 place without data loss; a database written by a newer provider is rejected
 rather than mis-read. The upgrade path is pinned by
-`tests/integration/test_schema_upgrade.py`.
+`tests/integration/test_schema_upgrade.py`, and the backup / clean-environment
+restore rehearsal (export, restore into a fresh database, integrity and
+projection parity, newer-provider rollback rejection) by
+`tests/integration/test_backup_restore.py`.
