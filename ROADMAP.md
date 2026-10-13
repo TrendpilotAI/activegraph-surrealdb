@@ -6,7 +6,7 @@ only when the previous boundary is repeatably demonstrated.
 ## Phase 0 — Contract-first research preview
 
 - [x] Separate authoritative event and disposable graph responsibilities.
-- [x] Pin ActiveGraph `1.12.0`, SurrealDB `3.2.4`, and Python SDK `2.0.0` lanes.
+- [x] Pin ActiveGraph `1.12.0`, SurrealDB `3.3.0`, and Python SDK `2.0.0` lanes.
 - [x] Define serialization, isolation, replay, fork/diff, and qualification contracts.
 - [x] Record upstream lifecycle limitations without private runtime patches.
 
@@ -26,13 +26,15 @@ only when the previous boundary is repeatably demonstrated.
 - [x] Pass live isolation, rollback, native-edge, and exact-JSON tests.
 - [ ] Pass pinned RocksDB graceful restart and abrupt container termination tests.
 - [x] Add an in-place, data-preserving schema upgrade lane and reject a newer schema.
-- [ ] Add a schema rollback lane before changing support.
-- [ ] Exercise backup and clean-environment restore, then verify event integrity and replay.
+- [x] Add a schema rollback lane before changing support.
+- [x] Exercise backup and clean-environment restore, then verify event integrity and replay.
 - [ ] Record bounded performance observations on controlled, representative data.
 
 ## Phase 3 — Upstream lifecycle alignment
 
-- [x] Re-evaluate append/projection ordering after ActiveGraph 1.12 incorporated it (CONTRACT v1.11 #2).
+- [x] Re-evaluate append/projection ordering after ActiveGraph 1.12 incorporated it
+  (CONTRACT v1.11 #2); see
+  [ADR 0003](docs/adr/0003-latest-stable-pins-and-exploration-lanes.md).
 - [ ] Adopt a public store-driver/registry contract if upstream accepts one.
 - [ ] Adopt store-neutral load/resume without phantom-run or stale-projection behavior.
 - [ ] Design snapshot/compaction hydration only against an explicit upstream contract.

@@ -51,15 +51,15 @@ contract against a pinned, repeatable configuration.
 | Component | Baseline |
 | --- | --- |
 | ActiveGraph | `1.12.0` |
-| SurrealDB server | `3.2.4` stable |
+| SurrealDB server | `3.3.0` stable |
 | SurrealDB Python SDK | `2.0.0` |
 | Python | `3.11+` |
 | Transport | remote WebSocket; local qualification uses `ws://` |
 | Storage engine | server-side RocksDB |
 
-SurrealDB `3.3.x` prereleases are a non-gating preview lane. HTTP, embedded
-engines, and TLS qualification are not part of the initial evidence. Details
-are in [compatibility and known issues](docs/compatibility.md).
+SurrealDB `3.3.x` is the stable lane; only later prereleases are preview.
+HTTP, embedded engines, and TLS qualification do not gate the stable lane.
+Details are in [compatibility and known issues](docs/compatibility.md).
 
 ## Architecture at a glance
 
@@ -91,8 +91,8 @@ SurrealQL; `match_chain` composes those pushed-down primitives hop by hop. The
 rich `where` predicate stays with ActiveGraph and is returned as an exact
 residual, per the released contract. Schema v2 adds the indexes those queries
 use; schema v3 records the object counter so reads return the reference store's
-insertion order. See [ADR 0003](docs/adr/0003-native-query-pushdown.md) and
-[ADR 0004](docs/adr/0004-projection-order.md).
+insertion order. See [ADR 0004](docs/adr/0004-native-query-pushdown.md) and
+[ADR 0005](docs/adr/0005-projection-order.md).
 
 ## Pack library
 
@@ -104,8 +104,13 @@ onto a `Runtime` whose event log and graph projection both live in SurrealDB:
 from activegraph_surrealdb import SurrealConfig, build_runtime
 
 handle = build_runtime(
-    SurrealConfig(endpoint="ws://127.0.0.1:8000", namespace="activegraph",
-                  database="assistant", username="root", password="root"),
+    SurrealConfig(
+        endpoint="ws://127.0.0.1:8000",
+        namespace="activegraph",
+        database="assistant",
+        username="root",
+        password="root",
+    ),
     run_id="run_1",
     scope="assistant",
 )

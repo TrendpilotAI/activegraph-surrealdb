@@ -9,7 +9,7 @@ credential.
 
 - public ActiveGraph `1.12.0` interfaces and conformance suites;
 - public ActiveGraph issues and pull requests cited in the known-issue tests;
-- public SurrealDB `3.2.4` and Python SDK `2.0.0` documentation/interfaces; and
+- public SurrealDB `3.3.0` and Python SDK `2.0.0` documentation/interfaces; and
 - generic, synthetic examples created for this provider.
 
 The repository imports ActiveGraph and the SurrealDB Python SDK as external
