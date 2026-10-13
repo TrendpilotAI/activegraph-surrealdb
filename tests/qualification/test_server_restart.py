@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import subprocess
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -36,8 +38,18 @@ def _control_container(container: str, action: str) -> None:
     )
 
 
+def _inspect_container(container: str) -> dict[str, Any]:
+    result = subprocess.run(
+        ["docker", "inspect", container],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)[0]
+
+
 @pytest.mark.qualification
-def test_rocksdb_survives_restart_and_abrupt_container_termination(
+def test_storage_survives_restart_and_abrupt_container_termination(
     qualification_environment,
 ) -> None:
     config = qualification_environment.config
@@ -71,39 +83,41 @@ def test_rocksdb_survives_restart_and_abrupt_container_termination(
     reopened_events.close()
     reopened_graph.close()
 
+    # Capture the lane's full start configuration before the kill so the
+    # re-creation is faithful on every lane (TLS flags and certificate
+    # mounts included) instead of approximating the default lane.
+    inspection = _inspect_container(container)
+    original_command = inspection["Config"]["Cmd"]
+    tls_mounts = [
+        mount for mount in inspection["Mounts"] if mount["Destination"].startswith("/tls/")
+    ]
+
     _control_container(container, "kill")
     wait_until_unavailable(config, timeout_seconds=15)
-    subprocess.run(
-        ["docker", "rm", container],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--detach",
-            "--name",
-            container,
-            "--publish",
-            f"127.0.0.1:{qualification_environment.host_port}:8000",
+    _control_container(container, "rm")
+    recreate = [
+        "docker",
+        "run",
+        "--detach",
+        "--name",
+        container,
+        "--publish",
+        f"127.0.0.1:{qualification_environment.host_port}:8000",
+        "--mount",
+        f"type=volume,src={qualification_environment.volume},dst=/data,volume-nocopy",
+        "--env",
+        f"SURREAL_USER={config.username}",
+        "--env",
+        f"SURREAL_PASS={config.password}",
+    ]
+    for mount in tls_mounts:
+        recreate += [
             "--mount",
-            f"type=volume,src={qualification_environment.volume},dst=/data,volume-nocopy",
-            "--env",
-            f"SURREAL_USER={config.username}",
-            "--env",
-            f"SURREAL_PASS={config.password}",
-            qualification_environment.image,
-            "start",
-            "--bind",
-            "0.0.0.0:8000",
-            "rocksdb:///data/activegraph.db",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+            f"type=bind,src={mount['Source']},dst={mount['Destination']},readonly",
+        ]
+    recreate.append(qualification_environment.image)
+    recreate.extend(original_command)
+    subprocess.run(recreate, check=True, capture_output=True, text=True)
     wait_until_ready(config, timeout_seconds=30)
 
     recovered = SurrealEventStore(config, run_id="run", scope=scope)

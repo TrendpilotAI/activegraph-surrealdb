@@ -1,14 +1,28 @@
+"""Session harness for the pinned Docker qualification server.
+
+The endpoint scheme may be ``ws`` or ``wss`` (Lane A TLS reuses these suites),
+and the asserted storage engine derives from
+``ACTIVEGRAPH_SURREALDB_TEST_ENGINE`` (default ``rocksdb``; Lane C sets
+``surrealkv``). Exploration-lane evidence tests gate behind their own markers
+and never run in the default selection.
+"""
+
 from __future__ import annotations
 
 import json
 import os
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlparse
 
 import pytest
 
 from activegraph_surrealdb import SurrealConfig
+
+TEST_ENGINE_VARIABLE = "ACTIVEGRAPH_SURREALDB_TEST_ENGINE"
+DEFAULT_TEST_ENGINE = "rocksdb"
+SUPPORTED_TEST_ENGINES = ("rocksdb", "surrealkv")
 
 
 @dataclass(frozen=True)
@@ -18,12 +32,32 @@ class QualificationEnvironment:
     volume: str
     host_port: int
     image: str
+    engine: str
+    storage_url: str
 
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "qualification: controls a pinned Docker qualification server"
     )
+    config.addinivalue_line(
+        "markers", "upgrade: lane B in-place volume upgrade evidence (non-gating)"
+    )
+
+
+def _test_engine() -> str:
+    engine = os.getenv(TEST_ENGINE_VARIABLE, DEFAULT_TEST_ENGINE)
+    if engine not in SUPPORTED_TEST_ENGINES:
+        pytest.fail(
+            f"{TEST_ENGINE_VARIABLE}={engine!r} is not one of: " + ", ".join(SUPPORTED_TEST_ENGINES)
+        )
+    return engine
+
+
+def _storage_url(inspection: dict[str, Any], engine: str) -> str:
+    matches = [item for item in inspection["Config"]["Cmd"] if f"{engine}:///data/" in item]
+    assert len(matches) == 1
+    return str(matches[0])
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -61,15 +95,16 @@ def qualification_environment() -> QualificationEnvironment:
     host_port = int(binding["HostPort"])
     endpoint = os.environ["ACTIVEGRAPH_SURREALDB_TEST_URL"]
     parsed = urlparse(endpoint)
-    assert parsed.scheme == "ws"
+    assert parsed.scheme in {"ws", "wss"}
     assert parsed.hostname in {"127.0.0.1", "localhost"}
     assert parsed.port == host_port
 
+    engine = _test_engine()
     data_mounts = [mount for mount in inspection["Mounts"] if mount["Destination"] == "/data"]
     assert len(data_mounts) == 1
     assert data_mounts[0]["Type"] == "volume"
     assert data_mounts[0]["Name"] == volume
-    assert any("rocksdb:///data/" in item for item in inspection["Config"]["Cmd"])
+    storage_url = _storage_url(inspection, engine)
 
     config = SurrealConfig(
         endpoint=endpoint,
@@ -84,4 +119,6 @@ def qualification_environment() -> QualificationEnvironment:
         volume=volume,
         host_port=host_port,
         image=inspection["Config"]["Image"],
+        engine=engine,
+        storage_url=storage_url,
     )
