@@ -25,7 +25,9 @@ detection, and prefix forks) and the `GraphStore` (objects, patches, and
 native `TYPE RELATION` edges) — on one SurrealDB deployment, with the query
 hooks pushed down into SurrealQL. One database holds both the record of what
 happened and the current view of the world, and the projection can always be
-erased and replayed from events.
+erased and replayed from events. See the [plain-language
+overview](docs/overview.md) for how the three workstreams (upgrade evidence,
+traces for evals, and the agentic harness) fit together.
 
 > **Status: research preview.** The repository uses contract-first development.
 > Passing tests are evidence for the tested versions and failure paths only;
@@ -216,7 +218,7 @@ interpreting a green result.
 - `examples/replay_fork_diff.py`: small fork/diff/replay experiment
 - `examples/combined_store_pack.py`: a pack running on one SurrealDB event+graph store
 - `docs/adr/`: authority, version, pushdown, and projection-order decisions
-- `docs/`: architecture, operations, evidence, security, and provenance
+- `docs/`: overview, architecture, operations, evidence, security, and provenance
 
 ## Contributing and security
 
