@@ -73,7 +73,11 @@
 
 export:
     auto: true
+    git-add: true
 sync:
     remote: "git+https://github.com/TrendpilotAI/activegraph-surrealdb.git"
 audit:
     enabled: true
+events-journal: true
+events-journal-retain-days: 90
+events-journal-retain-rows: 1000000
