@@ -97,9 +97,7 @@ def test_backup_and_clean_environment_restore_verifies_integrity_and_replay(
         assert report.head_hash == original_report.head_hash
 
         # Replay the restored log and require the same projection.
-        restored_projection = SurrealGraphStore(
-            _config(restore_db), run_id="run", scope="scope"
-        )
+        restored_projection = SurrealGraphStore(_config(restore_db), run_id="run", scope="scope")
         replay_graph(restored, restored_projection)
         assert _projection_snapshot(restored_projection) == original_snapshot
     finally:

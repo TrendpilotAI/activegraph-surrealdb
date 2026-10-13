@@ -1,0 +1,101 @@
+{
+  "workspace": "mercor-work",
+  "workspaceId": "ac-mnhYt8GmEVZ7uyWVzCKIGB",
+  "environment": "Development",
+  "appName": "activegraph-surrealdb-orca",
+  "repoUrl": "https://github.com/TrendpilotAI/activegraph-surrealdb.git",
+  "repoRef": "main",
+  "projectRoot": "/work/mercor-work/activegraph-surrealdb",
+  "cpu": 2,
+  "memoryMiB": 4096,
+  "timeoutSeconds": 86400,
+  "runtime": "vm",
+  "region": null,
+  "port": 7331,
+  "snapshotId": "im-01M4SM7KEZNBR03W4EYPTHN1H7",
+  "opencodeVersion": "2.0.27",
+  "orcaVersion": "1.4.224",
+  "arizeCommit": "8dcd3668ca1f83fd67404485129ae2e9d5c948c0",
+  "arizeSecret": "mercor-arize",
+  "mercorSecret": "mercor-gateway",
+  "githubSecret": "github-secret-2",
+  "logContent": false,
+  "references": {
+    "activegraph": {
+      "url": "https://github.com/yoheinakajima/activegraph.git",
+      "commit": "50d8405923b79e4e823a73a3045bb969436a872c"
+    },
+    "activegraph-packs": {
+      "url": "https://github.com/yoheinakajima/activegraph-packs.git",
+      "commit": "6639a5385518ad49f74813373c85cf96eff9adc0"
+    },
+    "surrealdb": {
+      "url": "https://github.com/surrealdb/surrealdb.git",
+      "commit": "18971ffba781a796c0ad3897bb4b82432c241e4c"
+    },
+    "surrealdb.py": {
+      "url": "https://github.com/surrealdb/surrealdb.py.git",
+      "commit": "4f2b9d784cbc7d5865c4c7aca48fcda4354a2ff1"
+    },
+    "surrealist": {
+      "url": "https://github.com/surrealdb/surrealist.git",
+      "commit": "65b7b95109177deb486cc6254ed203fce257fddf"
+    }
+  },
+  "outboundDomains": [
+    "agent.tinyfish.ai",
+    "api.github.com",
+    "api.tavily.com",
+    "arize.com",
+    "auth.docker.io",
+    "cafe.github.com",
+    "codeload.github.com",
+    "docs.arize.com",
+    "docs.docker.com",
+    "docs.surrealdb.com",
+    "download.docker.com",
+    "download.surrealdb.com",
+    "files.pythonhosted.org",
+    "ftp.debian.org",
+    "gastownhall-eventsapi.com",
+    "ghcr.io",
+    "github.com",
+    "hub.docker.com",
+    "mcp.context7.com",
+    "mcp.exa.ai",
+    "mercor-fde--devtraffic-gateway-serve.modal.run",
+    "mirror.gcr.io",
+    "models.dev",
+    "models.opencode.ai",
+    "objects.githubusercontent.com",
+    "opencode.ai",
+    "otlp.arize.com",
+    "productionresultssa1.blob.core.windows.net",
+    "public.ecr.aws",
+    "pypi.org",
+    "quay.io",
+    "raw.githubusercontent.com",
+    "registry-1.docker.io",
+    "registry.npmjs.org",
+    "release-assets.githubusercontent.com",
+    "results-receiver.actions.githubusercontent.com",
+    "search.parallel.ai",
+    "surrealdb.com"
+  ],
+  "mercorInstallerSha256": "7cca50f6f954305adea6047cfd45077f747aab0d2b51c317a260a6e8b005b191",
+  "orcaArtifactVersion": "0.1.0+15ec2904eb00",
+  "persistentHome": true,
+  "enableExitSnapshot": true,
+  "checkpointSeconds": 300,
+  "streamSeconds": 5,
+  "filesystemSnapshotSeconds": 900,
+  "dockerSourceSnapshotId": "im-01M4RNJ3AHAWJT2V8F53EY77D4",
+  "dockerEnabled": true,
+  "dockerPackages": {
+    "containerd.io": "2.4.1-2~debian.12~bookworm",
+    "docker-buildx-plugin": "0.38.0-1~debian.12~bookworm",
+    "docker-ce-cli": "5:29.9.0-1~debian.12~bookworm",
+    "docker-ce": "5:29.9.0-1~debian.12~bookworm",
+    "docker-compose-plugin": "5.6.0-1~debian.12~bookworm"
+  }
+}

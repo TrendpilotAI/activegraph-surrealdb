@@ -1,0 +1,14 @@
+setupAgentStartupPolicy: wait-for-setup
+scripts:
+  setup: |
+    if [ "${MERCOR_SANDBOX:-}" != "1" ] || [ ! -f /opt/mercor-tools/modal-state.json ]; then
+      echo 'Mercor workspace setup requires the Mercor Modal execution environment.' >&2
+      exit 1
+    fi
+environmentRecipes:
+  - id: mercor-modal
+    name: Mercor Modal (Development)
+    create: ./scripts/orca-vm/modal-create.sh
+    suspend: ./scripts/orca-vm/modal-suspend.sh
+    resume: ./scripts/orca-vm/modal-resume.sh
+    destroy: ./scripts/orca-vm/modal-destroy.sh

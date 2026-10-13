@@ -13,3 +13,8 @@ dist/
 .env.*
 !.env.example
 data/
+scripts/orca-vm/.local/
+scripts/orca-vm/node_modules/
+scripts/orca-vm/__pycache__/
+.devtraffic/
+opencode.json
