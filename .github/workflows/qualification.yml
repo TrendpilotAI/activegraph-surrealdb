@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   stable:
-    name: SurrealDB 3.2.4 / SDK 2.0.0 / WebSocket / RocksDB
+    name: SurrealDB 3.3.0 / SDK 2.0.0 / WebSocket / RocksDB
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -66,7 +66,7 @@ jobs:
             --mount "type=volume,src=${ACTIVEGRAPH_SURREALDB_DOCKER_VOLUME},dst=/data,volume-nocopy" \
             --env SURREAL_USER=root \
             --env "SURREAL_PASS=${ACTIVEGRAPH_SURREALDB_TEST_PASSWORD}" \
-            surrealdb/surrealdb:v3.2.4 \
+            surrealdb/surrealdb:v3.3.0 \
             start --bind 0.0.0.0:8000 rocksdb:///data/activegraph.db
       - name: Wait for SurrealDB
         run: |
