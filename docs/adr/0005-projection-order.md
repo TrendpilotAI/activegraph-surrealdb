@@ -1,4 +1,4 @@
-# ADR 0004: Return projected objects in the reference store's insertion order
+# ADR 0005: Return projected objects in the reference store's insertion order
 
 - Status: accepted for the research preview
 - Date: 2026-10-12

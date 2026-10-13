@@ -1,4 +1,4 @@
-# ADR 0003: Push the graph query hooks into SurrealQL
+# ADR 0004: Push the graph query hooks into SurrealQL
 
 - Status: accepted for the research preview
 - Date: 2026-10-12
@@ -66,3 +66,20 @@ Negative:
 Python fallback raises instead of returning rows. The released
 `GraphStoreConformance` suite runs unchanged against the same store, so the
 pushed-down behavior is pinned to the canonical semantics.
+
+## Evidence
+
+Accepted on the strength of the 2026-10-13 evidence-ladder runs against the
+pinned `surrealdb/surrealdb:v3.3.0` image, on fresh per-lane RocksDB /
+SurrealKV volumes:
+
+- `pytest -m surrealdb tests/integration` — 74 passed on server-side RocksDB
+  (`ws://`) and again on a dedicated SurrealKV volume (V7 lane, beta evidence),
+  including `test_graph_pushdown.py` with the Python fallback disabled.
+- The same suite passes over the TLS lane (`wss://` with enforced certificate
+  verification) apart from an intermittent client handshake timeout under CPU
+  contention (`agvm-wn2`).
+- Unit/contract ladder: 30 passed, 2 xfail (upstream #81/#82).
+
+The load-bearing `1.12.0` pin and the residual-predicate contract are re-proven
+on every one of those runs by the released conformance suites.

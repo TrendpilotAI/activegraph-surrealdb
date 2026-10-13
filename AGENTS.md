@@ -191,7 +191,7 @@ distinct ActiveGraph responsibilities on one SurrealDB deployment
 
 Docs are authoritative: `docs/architecture.md`, `docs/compatibility.md`,
 `docs/conformance.md`, `docs/deployment.md`, `docs/security-model.md`,
-`docs/upgrade-plan.md`, and ADRs `docs/adr/0001..0003`.
+`docs/upgrade-plan.md`, and ADRs `docs/adr/0001..0005`.
 
 ## Conventions & Patterns
 
