@@ -122,6 +122,24 @@ class SessionBackupTests(unittest.TestCase):
             )
         self.assertFalse((self.root / "escape").exists())
 
+    def test_docker_shell_preserves_home_tools_and_repairs_legacy_profile(self):
+        shell = load_module("backup_test_docker_shell", "configure-docker-shell.py")
+        home = self.root / "shell-home"
+        home.mkdir()
+        (home / ".profile").write_text('export CUSTOM_SETTING="keep"\n')
+        shell.configure(home)
+        self.assertFalse((home / ".bash_profile").exists())
+        self.assertIn('export CUSTOM_SETTING="keep"', (home / ".profile").read_text())
+        profile = home / ".bash_profile"
+        profile.write_text(shell.LEGACY_LITERAL + "\n# Mercor GitHub credential environment\n")
+        shell.configure(home)
+        repaired = profile.read_text()
+        self.assertNotIn(shell.LEGACY_LITERAL, repaired)
+        self.assertIn('. "$HOME/.profile"', repaired)
+        self.assertIn("$HOME/.local/bin:$HOME/bin:$PATH", repaired)
+        shell.configure(home)
+        self.assertEqual(profile.read_text(), repaired)
+
 
 if __name__ == "__main__":
     unittest.main()

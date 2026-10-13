@@ -335,18 +335,17 @@ def create(modal, *, volume_name=None):
                 "PYTHONPATH=",
                 "python3",
                 "-c",
-                (
-                    "from pathlib import Path; home=Path.home(); m"
-                    "arker='# Mercor VM Docker daemon'; files=[hom"
-                    "e/'.profile',home/'.bashrc',home/'.bash_profi"
-                    "le']; [(p.write_text((p.read_text() if p.exis"
-                    "ts() else '')+'\\n'+marker+'\\nexport DOCKER_HO"
-                    "ST=unix:///var/run/docker.sock\\nunset DOCKER_"
-                    "CONTEXT\\n')) for p in files if marker not in "
-                    "(p.read_text() if p.exists() else '')]"
-                ),
+                (HERE / "configure-docker-shell.py").read_text(),
                 timeout=30,
             )
+        remote(
+            sandbox,
+            "bash",
+            "-c",
+            "if ! command -v bd >/dev/null && test -x /home/mercor/.local/bin/bd; "
+            "then ln -s /home/mercor/.local/bin/bd /usr/local/bin/bd; fi",
+            timeout=10,
+        )
         for project in STATE.get("projects", []):
             if not project.get("private"):
                 continue
