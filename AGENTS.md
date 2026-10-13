@@ -146,8 +146,8 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev]'
 Test ladder (see docs/upgrade-plan.md for the serialized evidence ladder V0–V9):
 
 ```bash
-# Unit (no server needed)
-pytest -m 'not surrealdb and not qualification'
+# Unit (no server needed; the embedded lane self-skips without its gate)
+pytest -m 'not surrealdb and not qualification and not embedded'
 
 # Live integration (needs a running server)
 docker compose up -d
@@ -155,6 +155,9 @@ pytest -m surrealdb tests/integration
 
 # Qualification (controls a pinned Docker server; restart/kill sequences)
 ACTIVEGRAPH_SURREALDB_QUALIFY=1 pytest -m qualification tests/qualification
+
+# Embedded SDK lane (isolated venv; expected-rejection evidence)
+ACTIVEGRAPH_SURREALDB_EMBEDDED=1 .venv-embedded/bin/python -m pytest tests/embedded -m embedded
 
 # Published evidence example
 python examples/replay_fork_diff.py

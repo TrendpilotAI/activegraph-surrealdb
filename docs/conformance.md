@@ -14,9 +14,11 @@ different claims.
 | Native query pushdown | `tests/integration/test_graph_pushdown.py` | The query hooks run in SurrealQL, not the Python full-scan fallback |
 | Projection order | `tests/integration/test_projection_order.py` | Objects read back in the reference store's insertion order, including across reopens |
 | Schema upgrade | `tests/integration/test_schema_upgrade.py` | An older database upgrades in place; a newer schema is rejected |
+| Backup and restore | `tests/integration/test_backup_restore.py` | Export restores into a clean database with identical integrity and projection; a newer schema is rejected there too |
 | Provider invariants | `pytest -m surrealdb` | Real server transactions, isolation, native edges, replay/fork/diff, restart within a live server |
 | Pack harness | `pytest -m packs tests/packs` | The published pack library loads and projects into one SurrealDB database |
 | Pack fixture suites | `tests/packs/test_pack_fixtures_on_surrealdb.py` | Each pack's own `fixtures/run_fixtures.py` runs unchanged on SurrealDB-backed stores |
+| Embedded SDK lane | `tests/embedded` (`-m embedded`) | Under `surrealdb[embedded]==3.0.0b10`, embedded transports stay rejected — expected-rejection evidence |
 | Qualification | `pytest -m qualification` | Exact pinned image/SDK/engine and container restart/kill persistence |
 | Upstream known issues | `tests/known_issues` | Strict expected failures for lifecycle gaps outside this provider |
 
@@ -26,15 +28,19 @@ Install the development dependencies, then run the layers explicitly:
 
 ```bash
 python -m pip install -e '.[dev]'
-pytest -m 'not surrealdb and not qualification'
+pytest -m 'not surrealdb and not qualification and not embedded'
 pytest -m surrealdb tests/integration
 ACTIVEGRAPH_PACKS_PATH=/path/to/activegraph-packs pytest -m packs tests/packs
 ACTIVEGRAPH_SURREALDB_QUALIFY=1 pytest -m qualification tests/qualification
+ACTIVEGRAPH_SURREALDB_EMBEDDED=1 .venv-embedded/bin/python -m pytest tests/embedded -m embedded
 ```
 
 The live layers require the environment described in [deployment.md](deployment.md).
 The qualification command must target only the disposable container it is
-authorized to restart and kill.
+authorized to restart and kill. Lane tests (embedded and the exploration lanes)
+are selected-but-skipped unless their gate environment variable is set; the
+embedded lane runs inside an isolated `.venv-embedded` built with
+`surrealdb[embedded]==3.0.0b10` on top of the normal dev install.
 
 ## Required invariants
 
