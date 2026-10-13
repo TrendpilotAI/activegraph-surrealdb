@@ -101,8 +101,14 @@ under every failure, storage durability guarantees, or restore readiness.
 
 ## Backup and restore
 
-Backup and restore are promotion gates, not completed features of this preview.
-A production evaluation must document and exercise:
+Backup and restore remain promotion gates, not completed production features of
+this preview. A rehearsal lane is now pinned:
+`tests/integration/test_backup_restore.py` exports the event log, restores it
+into a clean database, verifies event-chain and run-head integrity plus
+projection parity after replay, and confirms a database written by a newer
+provider is rejected rather than mis-read.
+
+A production evaluation must additionally document and exercise:
 
 1. the SurrealDB-supported backup/export mechanism for the selected deployment;
 2. credential and encryption handling;
@@ -113,6 +119,25 @@ A production evaluation must document and exercise:
 
 A copied file, successful export command, or green application health check is
 not by itself restore proof.
+
+## Exploration lanes
+
+The exploration lanes are non-gating: evidence recorded on them never changes
+the stable lane's claims. Each uses its own volume or environment. Status and
+claims live in [compatibility.md](compatibility.md).
+
+- **TLS (`wss://`)**: serve with `--web-crt`/`--web-key` (env
+  `SURREAL_WEB_CRT`/`SURREAL_WEB_KEY`), or mount certificates through the
+  Compose TLS profile (`docker compose --profile tls`). The demonstrated
+  preview lane uses a local certificate authority and `SSL_CERT_FILE` on the
+  client; public CAs, proxies, and rotation are unqualified.
+- **SurrealKV engine**: start the server with `surrealkv:///path/to/db` on a
+  dedicated volume (or set the lane's engine variable). SurrealKV remains
+  beta; never share a storage location between backends.
+- **Embedded SDK**: an isolated `.venv-embedded` with
+  `surrealdb[embedded]==3.0.0b10` runs `tests/embedded`, which pins the
+  expected rejection of embedded transports; it is evidence of the contract,
+  not support for embedded mode.
 
 ## Production evaluation checklist
 

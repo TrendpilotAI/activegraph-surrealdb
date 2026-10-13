@@ -10,6 +10,23 @@ The important idea is not “put everything in one table.” It is “operate on
 database without confusing the record of what happened with a disposable view
 of what the world looks like now.”
 
+## What is ActiveGraph?
+
+[ActiveGraph](https://github.com/yoheinakajima/activegraph-packs) is a Python
+framework for building agents on an event-sourced graph. A runtime appends
+every decision and observation to an ordered event log, projects those events
+into a graph of objects and relations, and runs queued behaviors until the
+graph is idle. The event log is the authority; the graph is rebuildable state.
+An optional pack library defines agent behaviors and fixtures on top.
+
+This provider implements ActiveGraph's two store contracts — the `EventStore`
+(append-ordered, hash-chained events with per-run heads, stale-writer
+detection, and prefix forks) and the `GraphStore` (objects, patches, and
+native `TYPE RELATION` edges) — on one SurrealDB deployment, with the query
+hooks pushed down into SurrealQL. One database holds both the record of what
+happened and the current view of the world, and the projection can always be
+erased and replayed from events.
+
 > **Status: research preview.** The repository uses contract-first development.
 > Passing tests are evidence for the tested versions and failure paths only;
 > they are not a production-readiness, high-availability, backup, performance,
@@ -57,9 +74,12 @@ contract against a pinned, repeatable configuration.
 | Transport | remote WebSocket; local qualification uses `ws://` |
 | Storage engine | server-side RocksDB |
 
-SurrealDB `3.3.x` prereleases are a non-gating preview lane. HTTP, embedded
-engines, and TLS qualification are not part of the initial evidence. Details
-are in [compatibility and known issues](docs/compatibility.md).
+SurrealDB `3.3.x` prereleases are a non-gating preview lane. HTTP and embedded
+engines are rejected by configuration (pinned by the embedded lane in
+`tests/embedded/`). TLS has a demonstrated preview lane only — a local
+certificate authority with enforced certificate validation; public CAs, proxy
+termination, and rotation are unqualified. Details are in
+[compatibility and known issues](docs/compatibility.md).
 
 ## Architecture at a glance
 
@@ -172,7 +192,7 @@ python -m pip install -e '.[dev]'
 Run the contract layers separately:
 
 ```bash
-pytest -m 'not surrealdb and not qualification'
+pytest -m 'not surrealdb and not qualification and not embedded'
 pytest -m surrealdb tests/integration
 pytest -m packs tests/packs            # pack harness + per-pack fixture suites
 python examples/replay_fork_diff.py

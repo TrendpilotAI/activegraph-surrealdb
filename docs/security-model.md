@@ -50,9 +50,11 @@ anchored digest, which is outside this preview.
 - Rotate any credential that appears in a public log or issue; deleting the text
   is not sufficient remediation.
 
-The initial configuration accepts `wss://` syntax but has no qualified TLS lane.
-Certificate validation, proxies, workload identity, and rotation need explicit
-deployment tests before a remote security claim.
+The configuration accepts `wss://` syntax. A preview TLS lane is demonstrated
+(local certificate authority, enforced certificate validation, full live suite
+green; see [compatibility](compatibility.md)), but no TLS qualification claim is
+made: public CAs, proxy termination, least-privilege identities, and certificate
+rotation need explicit deployment tests before a remote security claim.
 
 ## Non-atomic runtime boundary
 
